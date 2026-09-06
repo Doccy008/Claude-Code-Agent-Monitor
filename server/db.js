@@ -1845,8 +1845,16 @@ const stmts = {
     WHERE model_pattern = ?
   `),
   deletePricing: db.prepare("DELETE FROM model_pricing WHERE model_pattern = ?"),
+  // ORDER BY length DESC picks the MOST SPECIFIC matching pattern, mirroring
+  // calculateCost() in routes/pricing.js. Patterns overlap by design —
+  // "claude-fable-5-1" matches both `claude-fable-5-1%` and `claude-fable-5%`,
+  // and the two differ on cache reads ($0.25 vs $1) — so a bare LIMIT 1 with no
+  // ordering could return either row and silently bill 5.1 at the 5 rate.
   matchPricing: db.prepare(
-    "SELECT * FROM model_pricing WHERE ? LIKE REPLACE(model_pattern, '%', '%') LIMIT 1"
+    `SELECT * FROM model_pricing
+      WHERE ? LIKE REPLACE(model_pattern, '%', '%')
+      ORDER BY LENGTH(model_pattern) DESC
+      LIMIT 1`
   ),
   // GPT / Codex pricing
   listGptPricing: db.prepare("SELECT * FROM gpt_model_pricing ORDER BY display_name ASC"),

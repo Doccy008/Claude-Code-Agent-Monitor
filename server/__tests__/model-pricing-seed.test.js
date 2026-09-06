@@ -23,7 +23,7 @@ process.env.CLAUDE_HOME = path.join(TMP, "home");
 process.env.DASHBOARD_DATA_DIR = path.join(TMP, "data");
 fs.mkdirSync(TMP, { recursive: true });
 
-const { db, correctSonnet5StandardRate } = require("../db");
+const { db, stmts, correctSonnet5StandardRate } = require("../db");
 const { calculateCost } = require("../routes/pricing");
 
 after(() => {
@@ -110,6 +110,38 @@ describe("model_pricing seed — models that had no rule or a stale rate", () =>
       assert.ok(rule, `${model} must resolve to a pricing rule`);
       assert.equal(rule.model_pattern, expected, `${model} must use its own rule`);
       assert.equal(rule.cache_read_per_mtok, cacheRead, `${model} cache read`);
+    }
+  });
+
+  it("stmts.matchPricing orders by specificity, so its LIMIT 1 is deterministic", () => {
+    // `LIMIT 1` without `ORDER BY` makes the chosen row UNDEFINED when several
+    // patterns match — and 5.1 matches both `claude-fable-5-1%` and
+    // `claude-fable-5%`, which differ on cache reads ($0.25 vs $1). SQLite
+    // currently happens to return the specific row, so a runtime-only
+    // assertion would pass with or without the fix and guard nothing. The
+    // defect is the missing ordering itself, so that is what is asserted.
+    assert.match(
+      stmts.matchPricing.source.replace(/\s+/g, " "),
+      /ORDER BY LENGTH\(model_pattern\) DESC\s+LIMIT 1/,
+      "matchPricing must order by pattern length so the most specific rule wins"
+    );
+  });
+
+  it("stmts.matchPricing resolves the most specific overlapping pattern", () => {
+    // Companion to the ordering assertion above: this pins the outcome callers
+    // depend on. It documents intent and catches a flipped sort direction.
+    for (const [model, expected, cacheRead] of [
+      ["claude-fable-5-1", "claude-fable-5-1%", 0.25],
+      ["claude-mythos-5-1", "claude-mythos-5-1%", 0.25],
+      ["claude-fable-5", "claude-fable-5%", 1],
+      ["claude-mythos-5", "claude-mythos-5%", 1],
+      ["claude-opus-5", "claude-opus-5%", 0.5],
+      ["claude-opus-5[1m]", "claude-opus-5%", 0.5],
+    ]) {
+      const row = stmts.matchPricing.get(model);
+      assert.ok(row, `${model} must match a pricing rule`);
+      assert.equal(row.model_pattern, expected, `${model} must use its own rule`);
+      assert.equal(row.cache_read_per_mtok, cacheRead, `${model} cache read`);
     }
   });
 
