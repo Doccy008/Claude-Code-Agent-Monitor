@@ -2059,6 +2059,14 @@ router.post("/ingest-batch", (req, res) => {
   });
 
   // ── Write phase: valid items only, one transaction for atomicity ────────
+  // Broadcasts are collected here and flushed only AFTER writeBatch() returns
+  // successfully (see the file's own "do all DB writes BEFORE any broadcast"
+  // rule above) -- emitting them from inside the transaction would let a
+  // later statement's throw roll back every insert while clients had already
+  // been told about a session/event that turns out not to exist (e.g. a
+  // concurrent delete of a resolved agent_id row between validation and the
+  // write causes insertEventAt to fail its FOREIGN KEY and abort the batch).
+  const pendingBroadcasts = [];
   const writeBatch = db.transaction(() => {
     let session = existing;
     if (!session) {
@@ -2078,7 +2086,7 @@ router.post("/ingest-batch", (req, res) => {
         REMOTE_PUSH_SOURCE
       );
       session = stmts.getSession.get(sessionId);
-      broadcast("session_created", session);
+      pendingBroadcasts.push(["session_created", session]);
     }
 
     // Ensure the main agent row exists before any event below references it —
@@ -2101,7 +2109,7 @@ router.post("/ingest-batch", (req, res) => {
         null
       );
       const mainAgent = stmts.getAgent.get(mainAgentId);
-      if (mainAgent) broadcast("agent_created", mainAgent);
+      if (mainAgent) pendingBroadcasts.push(["agent_created", mainAgent]);
     }
 
     for (const tk of validTokens) {
@@ -2134,14 +2142,17 @@ router.post("/ingest-batch", (req, res) => {
         JSON.stringify({ uuid: ev.uuid, status: ev.status }),
         ts
       );
-      broadcast("new_event", {
-        session_id: sessionId,
-        agent_id: ev.agentId,
-        event_type: REMOTE_TOOL_EVENT_TYPE,
-        tool_name: ev.toolName,
-        summary,
-        created_at: ts,
-      });
+      pendingBroadcasts.push([
+        "new_event",
+        {
+          session_id: sessionId,
+          agent_id: ev.agentId,
+          event_type: REMOTE_TOOL_EVENT_TYPE,
+          tool_name: ev.toolName,
+          summary,
+          created_at: ts,
+        },
+      ]);
     }
 
     for (const t of validTurns) {
@@ -2156,18 +2167,33 @@ router.post("/ingest-batch", (req, res) => {
         JSON.stringify({ uuid: t.uuid, duration_ms: t.durationMs }),
         ts
       );
-      broadcast("new_event", {
-        session_id: sessionId,
-        agent_id: t.agentId,
-        event_type: REMOTE_TURN_EVENT_TYPE,
-        tool_name: null,
-        summary,
-        created_at: ts,
-      });
+      pendingBroadcasts.push([
+        "new_event",
+        {
+          session_id: sessionId,
+          agent_id: t.agentId,
+          event_type: REMOTE_TURN_EVENT_TYPE,
+          tool_name: null,
+          summary,
+          created_at: ts,
+        },
+      ]);
     }
   });
 
-  writeBatch();
+  try {
+    writeBatch();
+  } catch (err) {
+    console.error(`[HOOKS] ingest-batch write failed for session ${sessionId}:`, err);
+    return res.status(500).json({
+      error: {
+        code: "WRITE_FAILED",
+        message: "batch write failed and was rolled back",
+      },
+    });
+  }
+
+  for (const [type, payload] of pendingBroadcasts) broadcast(type, payload);
 
   res.json({
     ok: true,

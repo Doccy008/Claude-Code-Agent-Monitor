@@ -16,6 +16,7 @@
  * All requests go through the real HTTP route (createApp()/startServer()),
  * not internal function calls — a direct function-call test would pass even
  * if the Express-level auth/routing wiring were broken.
+ * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
 const { describe, it, before, after, beforeEach, afterEach } = require("node:test");
