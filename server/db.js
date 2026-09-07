@@ -329,6 +329,31 @@ db.exec(`
 
   -- Composite indexes for frequent query patterns (columns that exist at table creation time)
   CREATE INDEX IF NOT EXISTS idx_events_session_type ON events(session_id, event_type);
+  -- Batch ingest (routes/hooks.js POST /api/hooks/ingest-batch) dedups incoming
+  -- ToolEvent/TurnDuration items against events by
+  -- (session_id, event_type, json_extract(data,'$.uuid')). Without this index
+  -- that's a per-session scan re-evaluating json_extract() on every row for
+  -- every batch item.
+  --
+  -- PARTIAL, same reason and same guard as the transcript_path backfill above
+  -- ("json_valid guard"): CREATE INDEX evaluates the indexed expression against
+  -- every existing row up front, and this table has older rows whose data is
+  -- not valid JSON (legacy data predating the JSON-events convention).
+  -- json_extract() throws "malformed JSON" on those, which would abort startup
+  -- on any installation carrying such rows. The WHERE json_valid(data) = 1
+  -- clause limits both index-build-time and future write-time evaluation of
+  -- json_extract() to rows that are actually JSON.
+  --
+  -- Non-obvious for whoever writes the dedup query: SQLite only uses a partial
+  -- index for a query whose own WHERE clause provably implies the index's WHERE
+  -- clause -- so the dedup query must include json_valid(data) = 1 literally,
+  -- not just semantically. Separately (and regardless of the index), that same
+  -- json_extract(data, '$.uuid') throws at *query* time too on a non-JSON row,
+  -- not only at index-build time -- so the guard is required for correctness on
+  -- any query touching events.data, index or no index.
+  CREATE INDEX IF NOT EXISTS idx_events_session_type_uuid
+  ON events(session_id, event_type, json_extract(data, '$.uuid'))
+  WHERE json_valid(data) = 1;
   -- Subagent JSONL import dedups each tool event with
   -- "WHERE agent_id = ? AND event_type = ? AND data LIKE '%tool_use_id%'".
   -- Without an agent_id index that is a full events-table scan per tool event;
