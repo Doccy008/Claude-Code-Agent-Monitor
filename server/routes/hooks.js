@@ -1746,6 +1746,13 @@ const REMOTE_PUSH_SOURCE = "remote_push";
 // on the payload shape itself.
 const INGEST_BATCH_SCHEMA_VERSION = 1;
 
+// This route is externally reachable (public internet via Traefik). Without
+// a combined item cap, a valid token holder could submit one huge batch and
+// force O(items) synchronous SQLite work plus O(items × connected clients)
+// WebSocket fan-out in a single request. Reject outright, before any other
+// validation/DB work, rather than accepting and later choking on it.
+const MAX_INGEST_BATCH_ITEMS = 1000;
+
 const REMOTE_TOOL_EVENT_TYPE = "RemoteToolEvent";
 const REMOTE_TURN_EVENT_TYPE = "RemoteTurn";
 
@@ -1854,6 +1861,12 @@ router.post("/ingest-batch", (req, res) => {
   const tokens = Array.isArray(body.tokens) ? body.tokens : [];
   const toolEvents = Array.isArray(body.tool_events) ? body.tool_events : [];
   const turns = Array.isArray(body.turns) ? body.turns : [];
+
+  if (tokens.length + toolEvents.length + turns.length > MAX_INGEST_BATCH_ITEMS) {
+    return res.status(413).json({
+      error: { code: "BATCH_TOO_LARGE", message: `batch exceeds ${MAX_INGEST_BATCH_ITEMS} items` },
+    });
+  }
 
   const mainAgentId = `${sessionId}-main`;
   const existing = stmts.getSession.get(sessionId);

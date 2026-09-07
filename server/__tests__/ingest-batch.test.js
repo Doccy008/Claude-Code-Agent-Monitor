@@ -162,6 +162,24 @@ describe("POST /api/hooks/ingest-batch", () => {
     assert.equal(mainAgent.session_id, sessionId);
   });
 
+  it("rejects an oversized batch with 413, before creating a session or doing any DB work", async () => {
+    const sessionId = newSessionId("too-large");
+    const tooMany = Array.from({ length: 1001 }, () => toolEventPayload());
+    const res = await post({ session_id: sessionId, provider: "claude", tool_events: tooMany });
+    assert.equal(res.status, 413);
+    assert.equal(res.body.error.code, "BATCH_TOO_LARGE");
+    assert.equal(stmts.getSession.get(sessionId), undefined, "no session was created");
+    assert.equal(rawEventsFor(sessionId).length, 0);
+  });
+
+  it("accepts a batch exactly at the item limit", async () => {
+    const sessionId = newSessionId("at-limit");
+    const exactly1000 = Array.from({ length: 1000 }, () => toolEventPayload());
+    const res = await post({ session_id: sessionId, provider: "claude", tool_events: exactly1000 });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.written, 1000);
+  });
+
   it("rejects an invalid provider with 400 and creates nothing", async () => {
     const sessionId = newSessionId("bad-provider");
     const res = await post({ session_id: sessionId, provider: "gemini" });
