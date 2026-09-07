@@ -342,6 +342,25 @@ describe("POST /api/hooks/ingest-batch", () => {
     assert.equal(rows[0].input_tokens, 100);
   });
 
+  it("rejects unsafe-integer token/duration values per-item (Number.isInteger alone would pass these)", async () => {
+    const sessionId = newSessionId("unsafe-integer");
+    const unsafe = Number.MAX_SAFE_INTEGER + 2; // still Number.isInteger(unsafe) === true
+    const res = await post({
+      session_id: sessionId,
+      provider: "claude",
+      tokens: [{ model: "claude-opus-5", input: unsafe, output: 10 }],
+      turns: [turnPayload({ duration_ms: unsafe })],
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.written, 0);
+    assert.equal(res.body.errors.length, 2);
+    assert.equal(res.body.errors[0].item, "tokens[0]");
+    assert.equal(res.body.errors[0].code, "INVALID_NUMERIC");
+    assert.equal(res.body.errors[1].item, "turns[0]");
+    assert.equal(res.body.errors[1].code, "INVALID_NUMERIC");
+    assert.equal(rawTokenRows(sessionId).length, 0);
+  });
+
   it("rejects cacheWrite1h > cacheWrite", async () => {
     const sessionId = newSessionId("cache-1h-overflow");
     const res = await post({

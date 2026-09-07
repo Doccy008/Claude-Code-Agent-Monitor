@@ -1793,7 +1793,11 @@ function coerceNonNegativeInt(value) {
   if (
     typeof value !== "number" ||
     !Number.isFinite(value) ||
-    !Number.isInteger(value) ||
+    // isSafeInteger, not isInteger: a value beyond +/-2^53 can still pass
+    // isInteger after JSON parsing rounds it to the nearest representable
+    // double, silently corrupting the token/duration count it's supposed to
+    // validate.
+    !Number.isSafeInteger(value) ||
     value < 0
   ) {
     return { ok: false };
