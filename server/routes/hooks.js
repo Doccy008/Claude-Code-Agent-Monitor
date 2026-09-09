@@ -18,7 +18,7 @@ const { ingestWorkflowsForSession } = require("../lib/workflow-ingest");
 // Required as a module object (not destructured) so tests can swap
 // `liveness.probeLiveCwds` and the watchdog picks the stub up at call time.
 const liveness = require("../lib/session-liveness");
-const { getHookToken } = require("../lib/security");
+const { getRemotePushToken, extractToken, tokensMatch } = require("../lib/security");
 const { REMOTE_PROVIDERS, assertProvider } = require("../lib/remote-sync");
 const { normalizeSpeed, normalizeGeo, normalizeTier } = require("../lib/token-usage");
 
@@ -1726,8 +1726,15 @@ function livenessReap({ ignoreIdleGate = false, provider = "claude" } = {}) {
 // Two things make this route different from every other route in this file:
 //   1. It is reachable from the public internet via Traefik, not loopback —
 //      so unlike the local hook routes above (which rely on hookGuard being a
-//      no-op + loopback bind), this route refuses to run at all unless a real
-//      DASHBOARD_HOOK_TOKEN is configured (503, not a silent accept).
+//      no-op + loopback bind), this route refuses to run at all unless its
+//      OWN REMOTE_PUSH_TOKEN is configured (503, not a silent accept), and
+//      every request must present it as a bearer/x-dashboard-token/?token=
+//      match (401 otherwise). Deliberately NOT DASHBOARD_HOOK_TOKEN: that
+//      token exists to harden the LOOPBACK-only local hook above, and an
+//      operator who sets it for that reason alone must not thereby also open
+//      an internet-writable session endpoint they never opted into (roaming
+//      laptop threat model — losing it shouldn't compromise everything under
+//      /api/hooks). See getRemotePushToken() in lib/security.js.
 //   2. A pushed session_id is caller-supplied and could collide (by accident
 //      or by a malicious remote) with a session this dashboard's OWN local
 //      hook is actively managing. Ownership is decided from the session
@@ -1769,12 +1776,17 @@ const TOKEN_NUMERIC_FIELDS = [
 ];
 
 // Mirrors the partial index idx_events_session_type_uuid (server/db.js): the
-// WHERE clause must repeat json_valid(data) = 1 literally for SQLite to use a
-// partial index, and it's required for correctness (json_extract throws on a
-// non-JSON row) independent of the index.
+// WHERE clause must repeat json_valid(data) = 1 AND the event_type IN (...)
+// list literally for SQLite to use the (now-narrowed) partial index -- a bare
+// `event_type = ?` parameter is not provably within the IN-list to the query
+// planner, so it falls back to a full events scan otherwise (checked against
+// EXPLAIN QUERY PLAN). The json_valid guard is also required for correctness
+// (json_extract throws on a non-JSON row) independent of the index. Keep this
+// IN list identical to the index's own predicate in server/db.js.
 const dedupEventStmt = db.prepare(
   `SELECT 1 FROM events
    WHERE session_id = ? AND event_type = ? AND json_valid(data) = 1
+     AND event_type IN ('${REMOTE_TOOL_EVENT_TYPE}', '${REMOTE_TURN_EVENT_TYPE}')
      AND json_extract(data, '$.uuid') = ? LIMIT 1`
 );
 
@@ -1818,17 +1830,25 @@ function coerceTimestamp(value) {
 }
 
 router.post("/ingest-batch", (req, res) => {
-  // Additional, stricter gate on top of hookGuard (server/index.js): hookGuard
-  // is a deliberate no-op when no DASHBOARD_HOOK_TOKEN is configured (fine for
-  // the loopback-only local hook above); this route is reachable from the
-  // public internet, so an unconfigured token must refuse outright rather
-  // than silently accept unauthenticated writes.
-  if (!getHookToken()) {
+  // Own gate, independent of hookGuard (server/index.js) and its
+  // DASHBOARD_HOOK_TOKEN: hookGuard no-ops when that token is unset (fine for
+  // the loopback-only local hook above, wrong for a route reachable from the
+  // public internet), and even when it IS set, reusing it here would silently
+  // widen what that token protects beyond what an operator configuring it for
+  // the local hook opted into. An unconfigured REMOTE_PUSH_TOKEN must refuse
+  // outright rather than silently accept unauthenticated writes.
+  const expectedToken = getRemotePushToken();
+  if (!expectedToken) {
     return res.status(503).json({
       error: {
-        code: "HOOK_TOKEN_NOT_CONFIGURED",
-        message: "remote ingestion is not configured",
+        code: "REMOTE_PUSH_NOT_CONFIGURED",
+        message: "remote push ingestion is not enabled",
       },
+    });
+  }
+  if (!tokensMatch(extractToken(req), expectedToken)) {
+    return res.status(401).json({
+      error: { code: "EUNAUTHORIZED", message: "missing or invalid remote-push token" },
     });
   }
 

@@ -116,4 +116,49 @@ describe("idx_events_session_type_uuid on a DB with legacy non-JSON events.data"
       "dedup query must find the valid-JSON row despite the coexisting legacy non-JSON row"
     );
   });
+
+  it("index predicate is narrowed to RemoteToolEvent/RemoteTurn (PR #329 follow-up)", () => {
+    const sql = db
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_events_session_type_uuid'"
+      )
+      .get().sql;
+    assert.match(sql, /event_type IN \('RemoteToolEvent', ?'RemoteTurn'\)/);
+  });
+
+  it("a dedup query repeating the event_type IN (...) list literally uses the partial index, not a full scan", () => {
+    // Mirrors hooks.js's dedupEventStmt exactly. The maintainer's own review
+    // measured that a bare `event_type = ?` parameter does NOT let SQLite prove
+    // the query's WHERE implies the narrowed index's WHERE, so it falls back to
+    // a full events scan -- verified here against EXPLAIN QUERY PLAN, not
+    // assumed from the claim alone.
+    const withInList = db
+      .prepare(
+        `EXPLAIN QUERY PLAN
+         SELECT 1 FROM events
+         WHERE session_id = ? AND event_type = ? AND json_valid(data) = 1
+           AND event_type IN ('RemoteToolEvent', 'RemoteTurn')
+           AND json_extract(data, '$.uuid') = ? LIMIT 1`
+      )
+      .all("s", "RemoteToolEvent", "u")
+      .map((r) => r.detail)
+      .join(" | ");
+    assert.match(withInList, /USING INDEX idx_events_session_type_uuid/);
+
+    const withoutInList = db
+      .prepare(
+        `EXPLAIN QUERY PLAN
+         SELECT 1 FROM events
+         WHERE session_id = ? AND event_type = ? AND json_valid(data) = 1
+           AND json_extract(data, '$.uuid') = ? LIMIT 1`
+      )
+      .all("s", "RemoteToolEvent", "u")
+      .map((r) => r.detail)
+      .join(" | ");
+    assert.doesNotMatch(
+      withoutInList,
+      /USING INDEX idx_events_session_type_uuid/,
+      "without the literal IN-list this must NOT use the narrowed index -- confirms the IN-list repetition is load-bearing, not decorative"
+    );
+  });
 });

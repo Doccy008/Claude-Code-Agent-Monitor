@@ -121,6 +121,19 @@ function getHookToken() {
   return readSecret("DASHBOARD_HOOK_TOKEN", "DASHBOARD_HOOK_TOKEN_FILE");
 }
 
+/**
+ * Optional, INDEPENDENT token for the remote-push ingest-batch route
+ * (server/routes/hooks.js POST /api/hooks/ingest-batch). Deliberately a
+ * separate secret from DASHBOARD_HOOK_TOKEN: that token's job is hardening
+ * the LOOPBACK-only local hook, and someone who sets it for that reason alone
+ * should not thereby also open an internet-writable session endpoint they
+ * never opted into (maintainer feedback on PR #329). Unset by default, same
+ * "presence of the secret = feature enabled" idiom as every other token here.
+ */
+function getRemotePushToken() {
+  return readSecret("REMOTE_PUSH_TOKEN", "REMOTE_PUSH_TOKEN_FILE");
+}
+
 function tokensMatch(provided, expected) {
   if (typeof provided !== "string" || provided.length === 0) return false;
   const a = Buffer.from(provided);
@@ -211,6 +224,7 @@ module.exports = {
   corsOptions,
   getDashboardToken,
   getHookToken,
+  getRemotePushToken,
   tokenGuard,
   hookGuard,
   isWebSocketAuthorized,

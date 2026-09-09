@@ -70,12 +70,12 @@ after(() => {
 });
 
 beforeEach(() => {
-  process.env.DASHBOARD_HOOK_TOKEN = TOKEN;
+  process.env.REMOTE_PUSH_TOKEN = TOKEN;
 });
 
 afterEach(() => {
-  delete process.env.DASHBOARD_HOOK_TOKEN;
-  delete process.env.DASHBOARD_HOOK_TOKEN_FILE;
+  delete process.env.REMOTE_PUSH_TOKEN;
+  delete process.env.REMOTE_PUSH_TOKEN_FILE;
 });
 
 async function post(body, { token = TOKEN } = {}) {
@@ -116,14 +116,34 @@ function rawTokenRows(sessionId) {
 }
 
 describe("POST /api/hooks/ingest-batch", () => {
-  it("responds 503 when DASHBOARD_HOOK_TOKEN is not configured at all", async () => {
-    delete process.env.DASHBOARD_HOOK_TOKEN;
-    delete process.env.DASHBOARD_HOOK_TOKEN_FILE;
+  it("responds 503 when REMOTE_PUSH_TOKEN is not configured at all", async () => {
+    delete process.env.REMOTE_PUSH_TOKEN;
+    delete process.env.REMOTE_PUSH_TOKEN_FILE;
     const sessionId = newSessionId("no-token");
     const res = await post({ session_id: sessionId, provider: "claude" }, { token: undefined });
     assert.equal(res.status, 503);
-    assert.equal(res.body.error.code, "HOOK_TOKEN_NOT_CONFIGURED");
+    assert.equal(res.body.error.code, "REMOTE_PUSH_NOT_CONFIGURED");
     assert.equal(stmts.getSession.get(sessionId), undefined, "no session was created");
+  });
+
+  it("setting DASHBOARD_HOOK_TOKEN alone (hardening the local hook) does NOT enable this route", async () => {
+    // The exact scenario the maintainer flagged on PR #329: an operator who
+    // sets DASHBOARD_HOOK_TOKEN to protect the loopback local hook must not
+    // thereby also open this internet-reachable route as a side effect.
+    delete process.env.REMOTE_PUSH_TOKEN;
+    delete process.env.REMOTE_PUSH_TOKEN_FILE;
+    process.env.DASHBOARD_HOOK_TOKEN = "some-other-token-for-the-local-hook";
+    try {
+      const sessionId = newSessionId("hook-token-only");
+      const res = await post(
+        { session_id: sessionId, provider: "claude" },
+        { token: "some-other-token-for-the-local-hook" }
+      );
+      assert.equal(res.status, 503);
+      assert.equal(res.body.error.code, "REMOTE_PUSH_NOT_CONFIGURED");
+    } finally {
+      delete process.env.DASHBOARD_HOOK_TOKEN;
+    }
   });
 
   it("responds 401 for a wrong token when a token IS configured", async () => {

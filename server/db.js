@@ -330,7 +330,7 @@ db.exec(`
   -- Composite indexes for frequent query patterns (columns that exist at table creation time)
   CREATE INDEX IF NOT EXISTS idx_events_session_type ON events(session_id, event_type);
   -- Batch ingest (routes/hooks.js POST /api/hooks/ingest-batch) dedups incoming
-  -- ToolEvent/TurnDuration items against events by
+  -- RemoteToolEvent/RemoteTurn items against events by
   -- (session_id, event_type, json_extract(data,'$.uuid')). Without this index
   -- that's a per-session scan re-evaluating json_extract() on every row for
   -- every batch item.
@@ -344,16 +344,30 @@ db.exec(`
   -- clause limits both index-build-time and future write-time evaluation of
   -- json_extract() to rows that are actually JSON.
   --
+  -- ALSO restricted to event_type IN ('RemoteToolEvent', 'RemoteTurn')
+  -- (maintainer feedback on PR #329): this index exists only to serve the
+  -- ingest-batch dedup query, which only ever looks up those two event types.
+  -- Without this predicate the index is built and maintained for EVERY
+  -- installation's entire events table regardless of whether remote push is
+  -- even configured -- measured at ~28MB per 500k events, ~224MB on a 4M-row
+  -- database. Narrowing the predicate makes it essentially free for anyone
+  -- who never uses the feature.
+  --
   -- Non-obvious for whoever writes the dedup query: SQLite only uses a partial
   -- index for a query whose own WHERE clause provably implies the index's WHERE
-  -- clause -- so the dedup query must include json_valid(data) = 1 literally,
-  -- not just semantically. Separately (and regardless of the index), that same
-  -- json_extract(data, '$.uuid') throws at *query* time too on a non-JSON row,
-  -- not only at index-build time -- so the guard is required for correctness on
-  -- any query touching events.data, index or no index.
+  -- clause -- so the dedup query must repeat BOTH json_valid(data) = 1 and the
+  -- event_type IN (...) list literally, not just semantically (a bare
+  -- event_type = ? parameter is NOT provably within the IN-list to the query
+  -- planner, so it falls back to a full events scan instead of using this
+  -- index -- verified against EXPLAIN QUERY PLAN, not assumed). Separately
+  -- (and regardless of the index), that same json_extract(data, '$.uuid')
+  -- throws at *query* time too on a non-JSON row, not only at index-build
+  -- time -- so the json_valid guard is required for correctness on any query
+  -- touching events.data, index or no index.
   CREATE INDEX IF NOT EXISTS idx_events_session_type_uuid
   ON events(session_id, event_type, json_extract(data, '$.uuid'))
-  WHERE json_valid(data) = 1;
+  WHERE json_valid(data) = 1
+    AND event_type IN ('RemoteToolEvent', 'RemoteTurn');
   -- Subagent JSONL import dedups each tool event with
   -- "WHERE agent_id = ? AND event_type = ? AND data LIKE '%tool_use_id%'".
   -- Without an agent_id index that is a full events-table scan per tool event;
