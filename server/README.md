@@ -528,7 +528,9 @@ REMOTE_PUSH_TOKEN=              # or REMOTE_PUSH_TOKEN_FILE=/path/to/token
 
 Unset (the default): every request gets `503 REMOTE_PUSH_NOT_CONFIGURED`. Set,
 but the request's token doesn't match: `401 EUNAUTHORIZED`. Send the token as
-`Authorization: Bearer <token>`, `X-Dashboard-Token: <token>`, or `?token=`.
+`Authorization: Bearer <token>` or `X-Dashboard-Token: <token>` -- deliberately
+**not** `?token=` (unlike the dashboard/WebSocket token above): a query-string
+credential on a public-internet route ends up in access/proxy logs.
 
 Request body:
 

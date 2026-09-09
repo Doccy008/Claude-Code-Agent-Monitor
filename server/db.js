@@ -135,6 +135,30 @@ db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 db.pragma("busy_timeout = 5000");
 
+// Migrate: idx_events_session_type_uuid's WHERE predicate was narrowed to
+// event_type IN ('RemoteToolEvent', 'RemoteTurn') (PR #329 review feedback).
+// The CREATE INDEX IF NOT EXISTS below is a no-op against an OLDER copy of
+// this index from before that narrowing -- an install that already has the
+// broad version would silently keep paying its full per-installation cost
+// forever, never picking up the fix. Drop it first if its stored definition
+// doesn't already match, so the CREATE below actually rebuilds it narrowed.
+try {
+  const existingIndex = db
+    .prepare(
+      "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_events_session_type_uuid'"
+    )
+    .get();
+  if (
+    existingIndex &&
+    !existingIndex.sql.includes("event_type IN ('RemoteToolEvent', 'RemoteTurn')")
+  ) {
+    db.exec("DROP INDEX idx_events_session_type_uuid");
+  }
+} catch {
+  // Best-effort -- the CREATE INDEX IF NOT EXISTS below still runs and is
+  // safe against a brand-new (or already-correct) database either way.
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,

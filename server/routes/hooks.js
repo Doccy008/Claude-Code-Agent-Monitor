@@ -18,7 +18,7 @@ const { ingestWorkflowsForSession } = require("../lib/workflow-ingest");
 // Required as a module object (not destructured) so tests can swap
 // `liveness.probeLiveCwds` and the watchdog picks the stub up at call time.
 const liveness = require("../lib/session-liveness");
-const { getRemotePushToken, extractToken, tokensMatch } = require("../lib/security");
+const { getRemotePushToken, extractHeaderOnlyToken, tokensMatch } = require("../lib/security");
 const { REMOTE_PROVIDERS, assertProvider } = require("../lib/remote-sync");
 const { normalizeSpeed, normalizeGeo, normalizeTier } = require("../lib/token-usage");
 
@@ -1794,6 +1794,18 @@ function itemError(item, code, message) {
   return { item, code, message };
 }
 
+// Any non-empty string was accepted as a uuid before this (CodeRabbit review
+// on PR #329) -- e.g. "not-a-uuid" was persisted and reported as written,
+// even though the dedup contract (dedupEventStmt) is documented as keying on
+// a real uuid. Deliberately permissive on version/variant nibbles (accepts
+// any RFC 4122-shaped value, not just v4) -- this is an identifier/dedup key
+// from a remote client, not a value this server generates itself.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value) {
+  return typeof value === "string" && UUID_RE.test(value);
+}
+
 /**
  * Non-negative safe-integer coercion for a present-but-optional numeric
  * field. Absent/null => 0 (mirrors the local hook's tokens.field || 0
@@ -1846,7 +1858,10 @@ router.post("/ingest-batch", (req, res) => {
       },
     });
   }
-  if (!tokensMatch(extractToken(req), expectedToken)) {
+  // Header-only extraction (never req.query.token) -- this route is public-
+  // internet-reachable, and a query-string credential ends up in server/proxy
+  // access logs (CodeRabbit review).
+  if (!tokensMatch(extractHeaderOnlyToken(req), expectedToken)) {
     return res.status(401).json({
       error: { code: "EUNAUTHORIZED", message: "missing or invalid remote-push token" },
     });
@@ -2029,6 +2044,10 @@ router.post("/ingest-batch", (req, res) => {
       errors.push(itemError(label, "INVALID_INPUT", "uuid is required"));
       return;
     }
+    if (!isUuid(ev.uuid)) {
+      errors.push(itemError(label, "INVALID_UUID", "uuid must be a valid UUID"));
+      return;
+    }
     const agentRes = resolveAgentId(ev.agent_id, label);
     if (!agentRes.ok) return;
     const tsRes = coerceTimestamp(ev.timestamp);
@@ -2060,6 +2079,10 @@ router.post("/ingest-batch", (req, res) => {
     const label = `turns[${i}]`;
     if (!t || typeof t !== "object" || typeof t.uuid !== "string" || !t.uuid) {
       errors.push(itemError(label, "INVALID_INPUT", "uuid is required"));
+      return;
+    }
+    if (!isUuid(t.uuid)) {
+      errors.push(itemError(label, "INVALID_UUID", "uuid must be a valid UUID"));
       return;
     }
     const agentRes = resolveAgentId(t.agent_id, label);

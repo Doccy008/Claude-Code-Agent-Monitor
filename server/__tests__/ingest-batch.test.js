@@ -156,6 +156,39 @@ describe("POST /api/hooks/ingest-batch", () => {
     assert.equal(stmts.getSession.get(sessionId), undefined, "no session was created");
   });
 
+  it("rejects a correct token sent only as ?token= -- a public-internet route must not accept a query-string credential", async () => {
+    // Deliberately not using the post() helper (which always sends
+    // Authorization) -- this needs to send NO Authorization header at all.
+    const sessionId = newSessionId("query-token");
+    const response = await fetch(
+      `${BASE}/api/hooks/ingest-batch?token=${encodeURIComponent(TOKEN)}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, provider: "claude" }),
+      }
+    );
+    assert.equal(response.status, 401);
+    assert.equal(stmts.getSession.get(sessionId), undefined, "no session was created");
+  });
+
+  it("rejects a malformed uuid on tool_events/turns instead of persisting it", async () => {
+    const sessionId = newSessionId("bad-uuid");
+    const res = await post({
+      session_id: sessionId,
+      provider: "claude",
+      tool_events: [toolEventPayload({ uuid: "not-a-uuid" })],
+      turns: [turnPayload({ uuid: "also-not-a-uuid" })],
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.written, 0);
+    assert.deepEqual(
+      res.body.errors.map((e) => e.code),
+      ["INVALID_UUID", "INVALID_UUID"]
+    );
+    assert.equal(rawEventsFor(sessionId).length, 0, "malformed-uuid items must not be persisted");
+  });
+
   it("creates a new session with the remote-push source sentinel + validated provider", async () => {
     const sessionId = newSessionId("create");
     const res = await post({

@@ -151,6 +151,23 @@ function extractToken(req) {
   return null;
 }
 
+/**
+ * Header-only variant of extractToken (no `?token=` query-string fallback):
+ * for the remote-push ingest-batch route (server/routes/hooks.js), which is
+ * reachable from the public internet. A query-string credential ends up in
+ * server access logs, any intermediate proxy's logs, and (for a browser
+ * client) history/Referer headers -- acceptable for the dashboard/WebSocket
+ * auth extractToken() already serves, not for an internet-facing token
+ * (CodeRabbit review on PR #329).
+ */
+function extractHeaderOnlyToken(req) {
+  const auth = req.headers.authorization;
+  if (typeof auth === "string" && auth.startsWith("Bearer ")) return auth.slice(7);
+  const header = req.headers["x-dashboard-token"];
+  if (typeof header === "string" && header) return header;
+  return null;
+}
+
 function extractHookToken(req) {
   const hookHeader = req.headers["x-ccam-hook-token"];
   if (typeof hookHeader === "string" && hookHeader) return hookHeader;
@@ -231,5 +248,6 @@ module.exports = {
   // exported for tests
   tokensMatch,
   extractToken,
+  extractHeaderOnlyToken,
   extractHookToken,
 };
