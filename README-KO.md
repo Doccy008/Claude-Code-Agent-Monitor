@@ -338,6 +338,7 @@ flowchart LR
 | **기존 세션 감지**                | 서버 시작 시 이미 실행 중인 세션은 (최근 JSONL 파일 수정 기준으로) "활성"으로 가져옵니다. Stop 이벤트도 가져온 완료/버려진 세션을 재활성화하므로, 진행 중인 세션의 첫 Hook이 항상 해당 세션을 대시보드에 표시합니다     |
 | **지속적인 프로젝트 동기화**      | `~/.claude/projects`의 시작 시 자동 가져오기는 일회성(마커로 게이트)이므로, 최초 실행 **이후** 생성된 프로젝트 폴더 — 세션이 Hook을 통해 전혀 흐르지 않는 경우(예: 호스트 전용 Hook 비활성화) — 는 수동 재스캔 전까지 보이지 않게 됩니다. 백그라운드 동기화(`startSessionSync`)가 하나의 mtime 캐시 + 하나로 합쳐진 스윕을 공유하는 세 가지 트리거로 그 간극을 메웁니다: 시작 시의 **즉시** 스윕, 새 세션 파일/프로젝트 폴더가 나타나는 즉시 발동하는 디바운스된 **`fs.watch`**(macOS/Windows에서는 재귀적; Linux에서는 사용자 공간 재귀 감시자 위험을 피하기 위해 루트 + 직계 자식만), 그리고 **주기적 폴링**(`DASHBOARD_SESSION_SYNC_MS`, 기본 30초). 각 스윕은 mtime이 증가한 파일만 다시 파싱하고 `session_created`/`session_updated`(그리고 메인 에이전트)를 브로드캐스트하여 UI가 실시간으로 새로고침됩니다; 이미 DB에 있는 변경되지 않은 세션은 재파싱 없이 건너뛰므로 재시작 비용은 O(새/변경된 파일)로 유지됩니다 |
 | **원격 데이터 소스**             | SSH를 통해 다른 머신의 Claude Code와 Codex 데이터를 실시간으로 수집합니다. 각 소스는 `~/.claude/projects`와 `~/.codex/sessions`를 독립적으로 미러링하며, Codex의 가벼운 `session_index.jsonl`도 가져와 네이티브 이름 변경 제목을 보존합니다. 기본 전송은 **scp**이고 WSL의 CLI에는 `wsl.exe` + `tar`를 사용합니다. 격리된 스테이징은 각 provider의 일반 임포터를 사용하고 세션에 `sessions.source`를 태그합니다. 한 소스는 Claude 전용, Codex 전용 또는 둘 다일 수 있습니다. `DASHBOARD_REMOTE_SYNC_MS`(기본 15초) 폴러는 provider별 상태와 카운터를 보냅니다. 한 provider가 없거나 오류/정지 상태가 되면 그 provider의 오래된 세션만 stale 스윕으로 넘어가며, 정상인 다른 provider는 계속 미러가 관리합니다. **Settings → Remote Data Sources** 또는 `ccam remote-sources`에서 별도의 선택적 원격 Claude 홈과 원격 Codex 홈을 설정하며 SSH 인증은 호스트가 맡고 비밀은 저장하지 않습니다. |
+| **원격 푸시 수집**                | SSH가 닿을 수 없는 머신을 위한 세 번째 세션 데이터 수집 경로입니다. NAT 뒤의 로밍 노트북이나 CGNAT 가정용 회선이 대시보드가 가져가기(pull)를 기다리는 대신 자신의 세션 데이터를 **푸시**합니다. `POST /api/hooks/ingest-batch`는 한 번에 한 배치를 받습니다 — token 버킷(각 항목은 델타가 아니라 트랜스크립트를 다시 파싱한 것처럼 해당 버킷의 현재 전체 합계), 도구 이벤트, 턴 소요 시간 — 그리고 서버에서 공개 인터넷에 노출되도록 의도된 유일한 라우트입니다. 따라서 **`REMOTE_PUSH_TOKEN`을 설정하기 전까지 비활성화**되며(그렇지 않으면 `503 REMOTE_PUSH_NOT_CONFIGURED`), loopback hook 라우트를 강화한다고 이 라우트가 함께 열리지 않도록 `DASHBOARD_HOOK_TOKEN`이 아닌 자체 token으로 보호되고, 자격 증명이 프록시 접근 로그에 남지 않도록 `?token=`을 거부합니다. 항목은 커밋된 행과 같은 배치 내부 모두에 대해 `(session_id, event_type, uuid)`로 중복이 제거되므로 재전송이 안전하며, 배치는 1000개 항목으로 제한되고(`413 BATCH_TOO_LARGE`), 로컬 또는 SSH로 가져온 세션이 이미 소유한 `session_id`는 탈취를 허용하는 대신 항목별로 거부됩니다(`SESSION_LOCALLY_OWNED`) — 푸시된 세션은 새 세션을 만들거나 자신이 만든 세션에만 덧붙일 수 있습니다. 부분 실패도 항목별 `errors[]`와 함께 `200`을 반환하며, 브로드캐스트는 트랜잭션 커밋 이후에 발생합니다 |
 | **반응형 디자인**                 | 쌓이는 그리드, 스크롤 가능한 테이블, 접을 수 있는 사이드바가 있는 모바일 친화적 레이아웃                                                                                                                                                                                      |
 | **UI 현지화**                     | 영어(`en`), 중국어(`zh`), 베트남어(`vi`), 한국어(`ko`), 스페인어(`es`)에 대해 번역된 UI 문구와 접근성 레이블을 갖춘 내장 언어 전환. 커버리지는 이제 워크플로 툴팁까지 엔드투엔드로 확장됩니다: 통계 카드 계산과 값 버킷 해석, 차트별 "무엇을 / 어떻게 읽는가 / 왜" 팝오버, 모든 그래프의 호버 툴팁(오케스트레이션, 도구 흐름, 파이프라인, 모델 위임, 동시성), 워크플로 패턴 상세 패널의 서사와 제안, 설정 → 모델 가격 책정 정보 팝오버, CLAUDE_HOME 패널, 전체 가져오기 기록 흐름                                                                                                                                                                       |
 | **시드 데이터**                   | 데모와 개발을 위한 내장 시드 스크립트                                                                                                                                                                                                                               |
@@ -639,6 +640,7 @@ flowchart LR
 | `DASHBOARD_SESSION_SYNC_MS` | `30000` | 시작 후 추가되어 세션이 Hook을 통해 흐르지 않는 프로젝트를 표면화하는 지속적 `~/.claude/projects` 백그라운드 동기화의 폴링 간격(ms). `fs.watch` 워처는 이와 무관하게 거의 즉시 발동합니다; 이 폴링은 안전망입니다(워처는 이벤트를 놓치거나 네트워크 파일시스템에서 발동하지 않을 수 있음). 워처는 계속 실행하면서 폴링만 비활성화하려면 `0`으로 설정하십시오 |
 | `DASHBOARD_CODEX_HOME` | `CODEX_HOME` 또는 `~/.codex` | 선택적 로컬 Codex 상태 디렉터리입니다. 설정에서 새 위치를 저장하면 이 대시보드 전용 재정의를 유지하고 실시간 감시를 다시 시작하며 새 `sessions/` 트리를 즉시 스캔합니다. |
 | `DASHBOARD_CODEX_SYNC_MS` | `4000` | append-only Codex rollout을 위한 안전망 폴링 간격(ms)입니다. Codex Hook은 같은 증분 수집을 즉시 실행합니다; `0`으로 설정하면 폴링만 끄고 가능한 경우 파일 시스템 워처는 유지합니다. |
+| `DASHBOARD_CODEX_MAX_ATTEMPTS` | `5` | Codex 스윕이 **변경되지 않은** 하나의 롤아웃에 대해 포기하기 전까지 소모하는 연속 ingest 실패 횟수입니다. 스윕은 읽지 못한 롤아웃을 의도적으로 다시 큐에 넣어 일시적 실패(`SQLITE_BUSY`, 절반만 기록된 레코드)가 다음 패스에서 복구되도록 합니다. 제한이 없으면 *영구적* 실패가 프로세스 수명 내내 반복됩니다 — `DASHBOARD_CODEX_SYNC_MS` 기본값 4초 기준으로 파일당 하루 약 21,600회 시도이며, 매번 단일 Node 스레드에서 로그 한 줄을 씁니다. 이 횟수는 첫 시도를 포함하고 파일마다 따로 계산되며, 파일의 size 또는 mtime이 바뀔 때마다 전부 복원되므로 단지 절반만 기록된 롤아웃은 스스로 복구됩니다. 예산을 소진한 시도는 한 번만 로그를 남기며 한도를 함께 표시합니다. 느리거나 불안정한 볼륨이 몇 번의 스윕보다 오래 걸린다면 값을 올리십시오 |
 | `DASHBOARD_CODEX_HOOK_IDLE_SECONDS` | `60` | **hook 전용** Codex 세션(롤아웃을 디스크에 기록하지 않고 실행된 세션, 예: `codex exec --ephemeral`)이 종료를 보고한 턴에 응답이 없을 때, `SessionEnd` hook이 유실되었다고 판단하기까지 기다리는 시간. `awaiting_reason`이 `stop`인 세션만 대상입니다: Codex는 `Stop` 이후 수백 ms 안에 `SessionEnd`를 보내므로, 응답 없는 `Stop`은 실제 근거입니다. 침묵은 의도적으로 트리거가 되지 않습니다 — 롤아웃이 없는 실행은 도구 호출이 진행되는 동안 hook을 전혀 보내지 않으므로, 유휴 시간 기반 규칙은 실행 중인 CI 빌드를 완료로 잘못 처리하게 됩니다 |
 | `DASHBOARD_TASK_SUMMARY_TTL_MS` | `2000` | `include_task_progress` 목록 요청**과** 세션 상세의 `todo_snapshot`을 뒷받침하는 작업 진행 캐시의 stale-허용 창(ms)입니다. 계속 append되는 트랜스크립트는 size+mtime 캐시 키에 거의 적중하지 못하므로, 커진 트랜스크립트는 마지막 완전한 JSONL 줄부터 증분 파싱되며, 이 하한은 연속된 목록 리로드(예: Hook 기반 WebSocket 이벤트로 대시보드가 새로고침될 때)를 한 번의 파싱으로 합칩니다. 창 내에서는 방금 파싱된(약간 오래된, 표시 전용) 결과를 반환합니다; `0`으로 설정하면 append마다 즉시 파싱합니다 |
 | `DASHBOARD_REMOTE_SYNC_MS` | `15000` | **원격 데이터 소스** 백그라운드 동기화 간격(ms)입니다. 활성 원격마다 `~/.claude/projects`와 `~/.codex/sessions`(Codex의 가벼운 `session_index.jsonl` 제목 인덱스 포함)를 독립적으로 가져와 각 로컬 임포터로 다시 가져옵니다. 새 소스 추가/활성화 시 즉시 1회 동기화됩니다. `0`으로 설정하면 원격 소스 폴링이 비활성화됩니다 |
@@ -649,7 +651,8 @@ flowchart LR
 | `DASHBOARD_TOKEN`       | _(설정 안 됨)_     | 설정하면 모든 `/api/*` 요청과 WebSocket이 토큰을 제시해야 합니다(`Authorization: Bearer <token>`, `x-dashboard-token` 헤더, 또는 `?token=`). 기본적으로 꺼져 있습니다 — 루프백 바인딩이 신뢰 경계입니다 |
 | `DASHBOARD_ALLOWED_HOSTS` | _(루프백)_ | HTTP + WebSocket 업그레이드에서 허용되는 추가 `Host` 값의 쉼표 구분 목록(DNS 리바인딩 방지). 루프백을 넘어 바인딩할 때 LAN 호스트명을 여기에 추가하십시오 |
 | `DASHBOARD_TOKEN_FILE` | _(설정 안 됨)_ | Docker/Kubernetes Secret용 file-backed dashboard token |
-| `DASHBOARD_HOOK_TOKEN` / `_FILE` | _(설정 안 됨)_ | Remote `/api/hooks/*` ingestion용 독립 token |
+| `DASHBOARD_HOOK_TOKEN` / `_FILE` | _(설정 안 됨)_ | loopback hook 라우트(`/api/hooks/event`, `/api/hooks/codex`)를 loopback 밖으로 노출할 때 사용하는 독립 token |
+| `REMOTE_PUSH_TOKEN` / `REMOTE_PUSH_TOKEN_FILE` | _(설정 안 됨)_ | `POST /api/hooks/ingest-batch`(공개 인터넷용 remote-push 라우트, 기본 비활성)를 보호하는 별도 token입니다. 위의 `DASHBOARD_HOOK_TOKEN`과 의도적으로 분리되어 있습니다 — 그 token을 설정한다고 해서 인터넷에서 쓰기 가능한 이 라우트가 함께 열려서는 안 됩니다 |
 | `DASHBOARD_ENV_PATH` | 저장소 `.env` | Settings가 값을 저장하는 writable dotenv 경로 |
 | `CCAM_DASHBOARD_URL` | 로컬 검색 | Remote Hook 목적지. Non-loopback은 HTTPS 필수 |
 | `CCAM_HOOK_TOKEN` / `_FILE` | _(설정 안 됨)_ | Hook handler가 보내는 credential |
@@ -1112,6 +1115,7 @@ npm run monitoring:docker:up
 | 메서드 | 경로               | 설명                                         |
 | ------ | ------------------ | -------------------------------------------- |
 | `POST` | `/api/hooks/event` | Claude Code Hook 이벤트를 수신하고 처리합니다 |
+| `POST` | `/api/hooks/ingest-batch` | 로밍 중이거나 NAT 뒤에 있는 머신에서 세션 데이터 배치를 푸시합니다(기본 비활성. 아래의 `REMOTE_PUSH_TOKEN`과 전체 페이로드 구조는 `server/README.md` 참고) |
 
 **Hook 이벤트 페이로드:**
 
@@ -1390,6 +1394,8 @@ stateDiagram-v2
 | `APIError`     | JSONL 트랜스크립트의 API 오류  | `isApiErrorMessage` 항목(할당량, 속도 제한, invalid_request)과 원시 `type: "error"` 응답에서 추출됩니다. **이제 세션과 에이전트를 즉시 `error`로 표시합니다** — 이전에는 상태 변경 없이 이벤트로만 기록되었습니다. 오류 세부 정보와 함께 이벤트로 저장됩니다 |
 | `TurnDuration` | JSONL 트랜스크립트의 턴 타이밍 | `durationMs`를 포함한 `system` 하위 유형 `turn_duration` 메시지에서 추출됩니다. 턴 수준 타이밍 분석을 위해 이벤트로 저장됩니다 |
 | `ToolError`    | JSONL의 도구 결과 오류         | `toolUseResult.is_error` 항목에서 추출됩니다. 오류 전파 분석을 위해 도구 수준의 실패를 추적합니다 |
+| `RemoteToolEvent` | 원격 머신이 푸시한 도구 호출 | 로밍 중이거나 NAT 뒤의 머신이 푸시한 각 `tool_events[]` 항목마다 `POST /api/hooks/ingest-batch`가 기록합니다. 커밋된 행과 같은 배치 내부 모두에 대해 `(session_id, event_type, uuid)`로 중복을 제거하므로 배치를 다시 보내도 안전합니다 |
+| `RemoteTurn` | 원격 머신이 푸시한 턴 소요 시간 | 각 `turns[]` 항목마다 `POST /api/hooks/ingest-batch`가 해당 턴의 `duration_ms`와 함께 기록합니다. 중복 제거 방식은 `RemoteToolEvent`와 동일합니다 |
 | `Interrupted`  | 사용자가 턴을 취소함(Esc)      | 워치독이 합성합니다 — `Esc`는 어떤 Hook도 발생시키지 않으므로, `working` 상태로 멈춘 세션은 트랜스크립트의 `[Request interrupted by user]` 마커로 감지되거나, 출력이 나오기 전에 Esc가 눌린 경우에는 유휴 working 타임아웃(`DASHBOARD_WORKING_IDLE_SECONDS`)으로 감지됩니다. 세션은 **Waiting**으로 이동합니다(일반 `Stop`과 동일) |
 
 ---

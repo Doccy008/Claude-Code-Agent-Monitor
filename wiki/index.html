@@ -1126,6 +1126,13 @@
                   </p>
                 </div>
                 <div class="feature-card">
+                  <div class="feature-icon ic-blue">📤</div>
+                  <h3>Remote Push Ingestion</h3>
+                  <p>
+                    Some machines SSH can never reach — a roaming laptop behind NAT, a CGNAT'd home line. Those push instead: <code>POST /api/hooks/ingest-batch</code> takes one batch of token buckets (each a full current total, not a delta), tool events, and turn durations. It is the only route meant to face the public internet, so it stays disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> rather than leak a credential into a proxy log, caps a batch at 1000 items, and refuses a session a local or SSH-pulled run already owns.
+                  </p>
+                </div>
+                <div class="feature-card">
                   <div class="feature-icon ic-cyan">💾</div>
                   <h3>Transcript Cache</h3>
                   <p>
@@ -1653,6 +1660,20 @@
                   </td>
                 </tr>
                 <tr>
+                  <td><code>RemoteToolEvent</code></td>
+                  <td>Tool call pushed by a remote machine</td>
+                  <td>
+                    Written by <code>POST /api/hooks/ingest-batch</code> for each tool call a roaming or NAT'd machine pushes. Deduped on <code>(session_id, event_type, uuid)</code> against committed rows and within the same batch, so resending a batch is safe.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>RemoteTurn</code></td>
+                  <td>Turn duration pushed by a remote machine</td>
+                  <td>
+                    Written by <code>POST /api/hooks/ingest-batch</code> for each pushed turn, carrying that turn's <code>duration_ms</code>. Same dedup as <code>RemoteToolEvent</code>.
+                  </td>
+                </tr>
+                <tr>
                   <td><code>APIError</code></td>
                   <td>API error detected in transcript</td>
                   <td>
@@ -1967,7 +1988,12 @@ npm run mcp:start:repl         # interactive CLI with tab completion</code></pre
                 <tr>
                   <td><code>DASHBOARD_HOOK_TOKEN</code> / <code>_FILE</code></td>
                   <td><code>(unset)</code></td>
-                  <td>Independent credential for authenticated remote <code>/api/hooks/*</code> ingestion</td>
+                  <td>Independent credential for the loopback hook routes (<code>/api/hooks/event</code>, <code>/api/hooks/codex</code>) when they are exposed beyond loopback</td>
+                </tr>
+                <tr>
+                  <td><code>REMOTE_PUSH_TOKEN</code> / <code>_FILE</code></td>
+                  <td><code>(unset)</code></td>
+                  <td>Separate token gating <code>POST /api/hooks/ingest-batch</code>, the public-internet remote-push route. Unset, that route answers <code>503 REMOTE_PUSH_NOT_CONFIGURED</code>. Deliberately independent of <code>DASHBOARD_HOOK_TOKEN</code>, so hardening the loopback routes never opens an internet-writable endpoint as a side effect</td>
                 </tr>
                 <tr>
                   <td><code>DASHBOARD_ENV_PATH</code></td>
@@ -2016,6 +2042,11 @@ npm run mcp:start:repl         # interactive CLI with tab completion</code></pre
                   <td><code>DASHBOARD_CODEX_SYNC_MS</code></td>
                   <td><code>4000</code></td>
                   <td>Safety-net interval (ms) for incremental Codex rollout scanning. Default <code>4000</code>; <code>0</code> disables polling but keeps the watcher.</td>
+                </tr>
+                <tr>
+                  <td><code>DASHBOARD_CODEX_MAX_ATTEMPTS</code></td>
+                  <td><code>5</code></td>
+                  <td>Consecutive failed ingest attempts the Codex sweep spends on one unchanged rollout before leaving it alone. The sweep re-queues a rollout it could not read so a transient failure recovers on the next pass; unbounded, a permanent failure repeats for the life of the process. The count includes the first attempt, is per file, and is restored in full whenever the file's size or mtime changes</td>
                 </tr>
                 <tr>
                   <td><code>DASHBOARD_CODEX_HOOK_IDLE_SECONDS</code></td>
@@ -3359,6 +3390,13 @@ npm run mcp:start:repl         # interactive CLI with tab completion</code></pre
               <span class="route-path">/api/hooks/event</span>
               <span class="route-desc"
                 >Receive and process a Claude Code hook event (called by hook-handler.js)</span
+              >
+            </div>
+            <div class="route-item">
+              <span class="method method-post">POST</span>
+              <span class="route-path">/api/hooks/ingest-batch</span>
+              <span class="route-desc"
+                >Remote push: the third session-data ingestion path, for a roaming or NAT'd machine the dashboard can never reach to pull FROM. One batch carries token buckets (each entry a bucket's full current total, not a delta), tool events, and turn durations, stored as <code>RemoteToolEvent</code> / <code>RemoteTurn</code>. The only route meant to be reachable from the public internet, so it is disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> so the credential never reaches a proxy log, caps a batch at 1000 items, dedups on <code>(session_id, event_type, uuid)</code> so a resend is safe, and refuses a <code>session_id</code> already owned by a local or SSH-pulled session</span
               >
             </div>
           </div>
@@ -7068,7 +7106,7 @@ npm run install-hooks</code></pre>
     <!-- Body-content translations — must load before script.js so the
          i18n engine sees window.__WIKI_CONTENT_I18N. Both are deferred, so they
          run in document order. -->
-    <script src="i18n-content.js?v=93" defer></script>
+    <script src="i18n-content.js?v=94" defer></script>
     <script src="script.js?v=57" defer></script>
     <script>
       (function () {
