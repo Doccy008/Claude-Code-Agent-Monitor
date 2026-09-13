@@ -86,8 +86,8 @@ window.__WIKI_CONTENT_I18N = {
       "保护 MCP <code>/mcp</code>、<code>/sse</code> 和 <code>/messages</code>；<code>/health</code> 仍可供探针访问",
     "File-backed dashboard REST and WebSocket token for Docker or Kubernetes secrets":
       "供 Docker 或 Kubernetes Secret 使用的文件型 Dashboard REST 与 WebSocket Token",
-    "Independent credential for authenticated remote <code>/api/hooks/*</code> ingestion":
-      "用于认证远程 <code>/api/hooks/*</code> 采集的独立凭据",
+    "Independent credential for the loopback hook routes (<code>/api/hooks/event</code>, <code>/api/hooks/codex</code>) when they are exposed beyond loopback":
+      "用于回环 hook 路由（<code>/api/hooks/event</code>、<code>/api/hooks/codex</code>）在暴露到回环之外时的独立凭据",
     "Writable dotenv path used when Settings persists Claude or Codex home overrides":
       "Settings 持久化 Claude 或 Codex home 覆盖值时使用的可写 dotenv 路径",
     "Optional remote hook destination; non-loopback URLs require HTTPS and a hook token":
@@ -1593,8 +1593,8 @@ window.__WIKI_CONTENT_I18N = {
       "Bảo vệ MCP <code>/mcp</code>, <code>/sse</code> và <code>/messages</code>; <code>/health</code> vẫn mở cho probe",
     "File-backed dashboard REST and WebSocket token for Docker or Kubernetes secrets":
       "Token REST và WebSocket của dashboard đọc từ tệp cho Secret Docker hoặc Kubernetes",
-    "Independent credential for authenticated remote <code>/api/hooks/*</code> ingestion":
-      "Credential độc lập cho remote <code>/api/hooks/*</code> ingestion có xác thực",
+    "Independent credential for the loopback hook routes (<code>/api/hooks/event</code>, <code>/api/hooks/codex</code>) when they are exposed beyond loopback":
+      "Credential độc lập cho các route hook loopback (<code>/api/hooks/event</code>, <code>/api/hooks/codex</code>) khi chúng được expose ra ngoài loopback",
     "Writable dotenv path used when Settings persists Claude or Codex home overrides":
       "Đường dẫn dotenv có quyền ghi khi Settings lưu override Claude hoặc Codex home",
     "Optional remote hook destination; non-loopback URLs require HTTPS and a hook token":
@@ -7301,8 +7301,8 @@ Object.assign(window.__WIKI_CONTENT_I18N.ko, {
     "MCP <code>/mcp</code>, <code>/sse</code>, <code>/messages</code>를 보호하며 <code>/health</code>는 상태 검사에 계속 제공됩니다",
   "File-backed dashboard REST and WebSocket token for Docker or Kubernetes secrets":
     "Docker 또는 Kubernetes Secret용 파일 기반 대시보드 REST 및 WebSocket Token",
-  "Independent credential for authenticated remote <code>/api/hooks/*</code> ingestion":
-    "인증된 원격 <code>/api/hooks/*</code> 수집을 위한 독립 자격 증명",
+  "Independent credential for the loopback hook routes (<code>/api/hooks/event</code>, <code>/api/hooks/codex</code>) when they are exposed beyond loopback":
+    "loopback hook 라우트(<code>/api/hooks/event</code>, <code>/api/hooks/codex</code>)를 loopback 밖으로 노출할 때 사용하는 독립 자격 증명",
   "Writable dotenv path used when Settings persists Claude or Codex home overrides":
     "설정에서 Claude 또는 Codex 홈 재정의를 저장할 때 사용하는 쓰기 가능한 dotenv 경로",
   "Optional remote hook destination; non-loopback URLs require HTTPS and a hook token":
@@ -7371,8 +7371,8 @@ Object.assign(window.__WIKI_CONTENT_I18N.es, {
     "Protege los endpoints MCP <code>/mcp</code>, <code>/sse</code> y <code>/messages</code>; <code>/health</code> permanece disponible para las sondas",
   "File-backed dashboard REST and WebSocket token for Docker or Kubernetes secrets":
     "Token REST y WebSocket del panel respaldado por archivo para secretos de Docker o Kubernetes",
-  "Independent credential for authenticated remote <code>/api/hooks/*</code> ingestion":
-    "Credencial independiente para la recepción remota autenticada en <code>/api/hooks/*</code>",
+  "Independent credential for the loopback hook routes (<code>/api/hooks/event</code>, <code>/api/hooks/codex</code>) when they are exposed beyond loopback":
+    "Credencial independiente para las rutas de hook de loopback (<code>/api/hooks/event</code>, <code>/api/hooks/codex</code>) cuando se exponen más allá del loopback",
   "Writable dotenv path used when Settings persists Claude or Codex home overrides":
     "Ruta dotenv escribible que usa Configuración al guardar reemplazos de los directorios de Claude o Codex",
   "Optional remote hook destination; non-loopback URLs require HTTPS and a hook token":
@@ -7619,4 +7619,100 @@ Object.assign(window.__WIKI_CONTENT_I18N.plain.es, {
   Cue: "Señal",
   "When it fires": "Cuándo suena",
   "What it sounds like": "Cómo suena",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.zh, {
+  "Separate token gating <code>POST /api/hooks/ingest-batch</code>, the public-internet remote-push route. Unset, that route answers <code>503 REMOTE_PUSH_NOT_CONFIGURED</code>. Deliberately independent of <code>DASHBOARD_HOOK_TOKEN</code>, so hardening the loopback routes never opens an internet-writable endpoint as a side effect":
+    "用于把守 <code>POST /api/hooks/ingest-batch</code>（面向公网的远程推送路由）的独立 token。未设置时该路由返回 <code>503 REMOTE_PUSH_NOT_CONFIGURED</code>。它刻意与 <code>DASHBOARD_HOOK_TOKEN</code> 相互独立，因此加固回环路由绝不会顺带开放一个可从互联网写入的端点",
+  "Consecutive failed ingest attempts the Codex sweep spends on one unchanged rollout before leaving it alone. The sweep re-queues a rollout it could not read so a transient failure recovers on the next pass; unbounded, a permanent failure repeats for the life of the process. The count includes the first attempt, is per file, and is restored in full whenever the file's size or mtime changes":
+    "Codex 扫描针对同一个未发生变化的 rollout 连续尝试采集的失败次数上限，超出后便不再重试。扫描会重新排队一个读取失败的 rollout，以便瞬时故障在下一轮恢复；若不设上限，永久性故障会在整个进程生命周期内不断重复。该计数包含第一次尝试、按文件独立统计，并在文件的大小或 mtime 发生变化时完全恢复",
+  "Remote push: the third session-data ingestion path, for a roaming or NAT'd machine the dashboard can never reach to pull FROM. One batch carries token buckets (each entry a bucket's full current total, not a delta), tool events, and turn durations, stored as <code>RemoteToolEvent</code> / <code>RemoteTurn</code>. The only route meant to be reachable from the public internet, so it is disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> so the credential never reaches a proxy log, caps a batch at 1000 items, dedups on <code>(session_id, event_type, uuid)</code> so a resend is safe, and refuses a <code>session_id</code> already owned by a local or SSH-pulled session":
+    "远程推送：第三条会话数据采集路径，面向仪表盘永远无法主动拉取的漫游或 NAT 后方机器。一个批次携带 token 分桶（每一项都是该分桶当前的完整总计，而非增量）、工具事件和回合时长，分别存储为 <code>RemoteToolEvent</code> / <code>RemoteTurn</code>。这是唯一一条有意可从公网访问的路由，因此在设置 <code>REMOTE_PUSH_TOKEN</code> 之前处于禁用状态，拒绝 <code>?token=</code> 以免凭据进入代理日志，单批次上限 1000 项，按 <code>(session_id, event_type, uuid)</code> 去重使重发安全，并拒绝已被本地或 SSH 拉取会话占用的 <code>session_id</code>",
+  "Tool call pushed by a remote machine": "由远程机器推送的工具调用",
+  "Written by <code>POST /api/hooks/ingest-batch</code> for each tool call a roaming or NAT'd machine pushes. Deduped on <code>(session_id, event_type, uuid)</code> against committed rows and within the same batch, so resending a batch is safe.":
+    "由 <code>POST /api/hooks/ingest-batch</code> 为漫游或 NAT 后方机器推送的每一次工具调用写入。会按 <code>(session_id, event_type, uuid)</code> 针对已提交行以及同一批次内部去重，因此重发批次是安全的。",
+  "Turn duration pushed by a remote machine": "由远程机器推送的回合时长",
+  "Written by <code>POST /api/hooks/ingest-batch</code> for each pushed turn, carrying that turn's <code>duration_ms</code>. Same dedup as <code>RemoteToolEvent</code>.":
+    "由 <code>POST /api/hooks/ingest-batch</code> 为每个推送的回合写入，携带该回合的 <code>duration_ms</code>。去重方式与 <code>RemoteToolEvent</code> 相同。",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.vi, {
+  "Separate token gating <code>POST /api/hooks/ingest-batch</code>, the public-internet remote-push route. Unset, that route answers <code>503 REMOTE_PUSH_NOT_CONFIGURED</code>. Deliberately independent of <code>DASHBOARD_HOOK_TOKEN</code>, so hardening the loopback routes never opens an internet-writable endpoint as a side effect":
+    "Token riêng bảo vệ <code>POST /api/hooks/ingest-batch</code> — route remote-push hướng ra internet công cộng. Khi chưa đặt, route đó trả về <code>503 REMOTE_PUSH_NOT_CONFIGURED</code>. Nó độc lập một cách có chủ đích với <code>DASHBOARD_HOOK_TOKEN</code>, nên việc siết chặt các route loopback không bao giờ vô tình mở một endpoint ghi được từ internet",
+  "Consecutive failed ingest attempts the Codex sweep spends on one unchanged rollout before leaving it alone. The sweep re-queues a rollout it could not read so a transient failure recovers on the next pass; unbounded, a permanent failure repeats for the life of the process. The count includes the first attempt, is per file, and is restored in full whenever the file's size or mtime changes":
+    "Số lần ingest thất bại liên tiếp mà vòng quét Codex dành cho một rollout không thay đổi trước khi bỏ qua nó. Vòng quét xếp lại hàng đợi một rollout nó không đọc được để lỗi tạm thời phục hồi ở lượt sau; nếu không giới hạn, một lỗi vĩnh viễn sẽ lặp lại suốt vòng đời tiến trình. Bộ đếm bao gồm cả lần thử đầu tiên, tính riêng theo từng file, và được khôi phục đầy đủ mỗi khi size hoặc mtime của file thay đổi",
+  "Remote push: the third session-data ingestion path, for a roaming or NAT'd machine the dashboard can never reach to pull FROM. One batch carries token buckets (each entry a bucket's full current total, not a delta), tool events, and turn durations, stored as <code>RemoteToolEvent</code> / <code>RemoteTurn</code>. The only route meant to be reachable from the public internet, so it is disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> so the credential never reaches a proxy log, caps a batch at 1000 items, dedups on <code>(session_id, event_type, uuid)</code> so a resend is safe, and refuses a <code>session_id</code> already owned by a local or SSH-pulled session":
+    "Remote push: đường ingest dữ liệu phiên thứ ba, dành cho máy roaming hoặc nằm sau NAT mà dashboard không bao giờ với tới để kéo về. Mỗi batch mang theo các bucket token (mỗi mục là tổng hiện tại đầy đủ của bucket đó, không phải delta), tool event và thời lượng lượt, lưu thành <code>RemoteToolEvent</code> / <code>RemoteTurn</code>. Đây là route duy nhất được thiết kế để tiếp cận được từ internet công cộng, nên nó bị tắt cho tới khi đặt <code>REMOTE_PUSH_TOKEN</code>, từ chối <code>?token=</code> để credential không bao giờ lọt vào log proxy, giới hạn mỗi batch 1000 mục, khử trùng lặp theo <code>(session_id, event_type, uuid)</code> nên gửi lại là an toàn, và từ chối một <code>session_id</code> đã thuộc về phiên local hoặc phiên kéo qua SSH",
+  "Tool call pushed by a remote machine": "Tool call do một máy từ xa đẩy lên",
+  "Written by <code>POST /api/hooks/ingest-batch</code> for each tool call a roaming or NAT'd machine pushes. Deduped on <code>(session_id, event_type, uuid)</code> against committed rows and within the same batch, so resending a batch is safe.":
+    "Được <code>POST /api/hooks/ingest-batch</code> ghi cho từng tool call mà một máy roaming hoặc sau NAT đẩy lên. Khử trùng lặp theo <code>(session_id, event_type, uuid)</code> với cả các hàng đã commit lẫn trong cùng một batch, nên gửi lại batch là an toàn.",
+  "Turn duration pushed by a remote machine": "Thời lượng lượt do một máy từ xa đẩy lên",
+  "Written by <code>POST /api/hooks/ingest-batch</code> for each pushed turn, carrying that turn's <code>duration_ms</code>. Same dedup as <code>RemoteToolEvent</code>.":
+    "Được <code>POST /api/hooks/ingest-batch</code> ghi cho mỗi lượt được đẩy lên, mang theo <code>duration_ms</code> của lượt đó. Khử trùng lặp giống <code>RemoteToolEvent</code>.",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.ko, {
+  "Separate token gating <code>POST /api/hooks/ingest-batch</code>, the public-internet remote-push route. Unset, that route answers <code>503 REMOTE_PUSH_NOT_CONFIGURED</code>. Deliberately independent of <code>DASHBOARD_HOOK_TOKEN</code>, so hardening the loopback routes never opens an internet-writable endpoint as a side effect":
+    "공개 인터넷용 remote-push 라우트인 <code>POST /api/hooks/ingest-batch</code>를 보호하는 별도 token입니다. 설정하지 않으면 해당 라우트는 <code>503 REMOTE_PUSH_NOT_CONFIGURED</code>를 반환합니다. <code>DASHBOARD_HOOK_TOKEN</code>과 의도적으로 분리되어 있어, loopback 라우트를 강화한다고 해서 인터넷에서 쓰기 가능한 엔드포인트가 함께 열리는 일은 없습니다",
+  "Consecutive failed ingest attempts the Codex sweep spends on one unchanged rollout before leaving it alone. The sweep re-queues a rollout it could not read so a transient failure recovers on the next pass; unbounded, a permanent failure repeats for the life of the process. The count includes the first attempt, is per file, and is restored in full whenever the file's size or mtime changes":
+    "Codex 스윕이 변경되지 않은 하나의 rollout에 대해 포기하기 전까지 소모하는 연속 ingest 실패 횟수입니다. 스윕은 읽지 못한 rollout을 다시 큐에 넣어 일시적 실패가 다음 패스에서 복구되도록 하지만, 제한이 없으면 영구적 실패가 프로세스 수명 내내 반복됩니다. 이 횟수는 첫 시도를 포함하고 파일마다 따로 계산되며, 파일의 size 또는 mtime이 바뀔 때마다 전부 복원됩니다",
+  "Remote push: the third session-data ingestion path, for a roaming or NAT'd machine the dashboard can never reach to pull FROM. One batch carries token buckets (each entry a bucket's full current total, not a delta), tool events, and turn durations, stored as <code>RemoteToolEvent</code> / <code>RemoteTurn</code>. The only route meant to be reachable from the public internet, so it is disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> so the credential never reaches a proxy log, caps a batch at 1000 items, dedups on <code>(session_id, event_type, uuid)</code> so a resend is safe, and refuses a <code>session_id</code> already owned by a local or SSH-pulled session":
+    "Remote push: 대시보드가 결코 가져올(pull) 수 없는 로밍 중이거나 NAT 뒤에 있는 머신을 위한 세 번째 세션 데이터 수집 경로입니다. 한 배치에는 token 버킷(각 항목은 델타가 아니라 해당 버킷의 현재 전체 합계), 도구 이벤트, 턴 소요 시간이 담기며 각각 <code>RemoteToolEvent</code> / <code>RemoteTurn</code>으로 저장됩니다. 공개 인터넷에서 접근 가능하도록 의도된 유일한 라우트이므로 <code>REMOTE_PUSH_TOKEN</code>을 설정하기 전까지 비활성화되고, 자격 증명이 프록시 로그에 남지 않도록 <code>?token=</code>을 거부하며, 배치당 1000개 항목으로 제한하고, <code>(session_id, event_type, uuid)</code>로 중복을 제거해 재전송이 안전하며, 로컬 또는 SSH로 가져온 세션이 이미 소유한 <code>session_id</code>는 거부합니다",
+  "Tool call pushed by a remote machine": "원격 머신이 푸시한 도구 호출",
+  "Written by <code>POST /api/hooks/ingest-batch</code> for each tool call a roaming or NAT'd machine pushes. Deduped on <code>(session_id, event_type, uuid)</code> against committed rows and within the same batch, so resending a batch is safe.":
+    "로밍 중이거나 NAT 뒤의 머신이 푸시한 각 도구 호출마다 <code>POST /api/hooks/ingest-batch</code>가 기록합니다. 커밋된 행과 같은 배치 내부 모두에 대해 <code>(session_id, event_type, uuid)</code>로 중복을 제거하므로 배치를 다시 보내도 안전합니다.",
+  "Turn duration pushed by a remote machine": "원격 머신이 푸시한 턴 소요 시간",
+  "Written by <code>POST /api/hooks/ingest-batch</code> for each pushed turn, carrying that turn's <code>duration_ms</code>. Same dedup as <code>RemoteToolEvent</code>.":
+    "푸시된 각 턴마다 <code>POST /api/hooks/ingest-batch</code>가 해당 턴의 <code>duration_ms</code>와 함께 기록합니다. 중복 제거 방식은 <code>RemoteToolEvent</code>와 동일합니다.",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.es, {
+  "Separate token gating <code>POST /api/hooks/ingest-batch</code>, the public-internet remote-push route. Unset, that route answers <code>503 REMOTE_PUSH_NOT_CONFIGURED</code>. Deliberately independent of <code>DASHBOARD_HOOK_TOKEN</code>, so hardening the loopback routes never opens an internet-writable endpoint as a side effect":
+    "Token independiente que protege <code>POST /api/hooks/ingest-batch</code>, la ruta de remote-push expuesta a la internet pública. Sin configurar, esa ruta responde <code>503 REMOTE_PUSH_NOT_CONFIGURED</code>. Es deliberadamente independiente de <code>DASHBOARD_HOOK_TOKEN</code>, de modo que endurecer las rutas de loopback nunca abre de paso un endpoint escribible desde internet",
+  "Consecutive failed ingest attempts the Codex sweep spends on one unchanged rollout before leaving it alone. The sweep re-queues a rollout it could not read so a transient failure recovers on the next pass; unbounded, a permanent failure repeats for the life of the process. The count includes the first attempt, is per file, and is restored in full whenever the file's size or mtime changes":
+    "Intentos de ingesta fallidos consecutivos que el barrido de Codex dedica a un mismo rollout sin cambios antes de dejarlo en paz. El barrido vuelve a encolar un rollout que no pudo leer para que un fallo transitorio se recupere en la siguiente pasada; sin límite, un fallo permanente se repite durante toda la vida del proceso. La cuenta incluye el primer intento, es por archivo y se restaura por completo cada vez que cambian el tamaño o el mtime del archivo",
+  "Remote push: the third session-data ingestion path, for a roaming or NAT'd machine the dashboard can never reach to pull FROM. One batch carries token buckets (each entry a bucket's full current total, not a delta), tool events, and turn durations, stored as <code>RemoteToolEvent</code> / <code>RemoteTurn</code>. The only route meant to be reachable from the public internet, so it is disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> so the credential never reaches a proxy log, caps a batch at 1000 items, dedups on <code>(session_id, event_type, uuid)</code> so a resend is safe, and refuses a <code>session_id</code> already owned by a local or SSH-pulled session":
+    "Remote push: la tercera vía de ingesta de datos de sesión, para una máquina itinerante o tras NAT a la que el panel nunca puede llegar para extraer datos. Cada lote lleva buckets de tokens (cada entrada es el total actual completo del bucket, no un delta), eventos de herramienta y duraciones de turno, almacenados como <code>RemoteToolEvent</code> / <code>RemoteTurn</code>. Es la única ruta pensada para ser accesible desde la internet pública, así que está deshabilitada hasta configurar <code>REMOTE_PUSH_TOKEN</code>, rechaza <code>?token=</code> para que la credencial nunca llegue a un registro del proxy, limita el lote a 1000 elementos, deduplica por <code>(session_id, event_type, uuid)</code> de modo que reenviar es seguro, y rechaza un <code>session_id</code> que ya pertenezca a una sesión local o extraída por SSH",
+  "Tool call pushed by a remote machine": "Llamada a herramienta enviada por una máquina remota",
+  "Written by <code>POST /api/hooks/ingest-batch</code> for each tool call a roaming or NAT'd machine pushes. Deduped on <code>(session_id, event_type, uuid)</code> against committed rows and within the same batch, so resending a batch is safe.":
+    "Lo escribe <code>POST /api/hooks/ingest-batch</code> por cada llamada a herramienta que envía una máquina itinerante o tras NAT. Se deduplica por <code>(session_id, event_type, uuid)</code> tanto frente a las filas ya confirmadas como dentro del mismo lote, así que reenviar un lote es seguro.",
+  "Turn duration pushed by a remote machine": "Duración de turno enviada por una máquina remota",
+  "Written by <code>POST /api/hooks/ingest-batch</code> for each pushed turn, carrying that turn's <code>duration_ms</code>. Same dedup as <code>RemoteToolEvent</code>.":
+    "Lo escribe <code>POST /api/hooks/ingest-batch</code> por cada turno enviado, con el <code>duration_ms</code> de ese turno. Misma deduplicación que <code>RemoteToolEvent</code>.",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.zh, {
+  "Some machines SSH can never reach — a roaming laptop behind NAT, a CGNAT'd home line. Those push instead: <code>POST /api/hooks/ingest-batch</code> takes one batch of token buckets (each a full current total, not a delta), tool events, and turn durations. It is the only route meant to face the public internet, so it stays disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> rather than leak a credential into a proxy log, caps a batch at 1000 items, and refuses a session a local or SSH-pulled run already owns.":
+    "有些机器 SSH 永远无法触达 —— 处于 NAT 后的漫游笔记本、被 CGNAT 的家庭宽带。这些机器改为推送：<code>POST /api/hooks/ingest-batch</code> 每次接收一个批次的 Token 分桶（每一项都是当前的完整总计，而非增量）、工具事件和回合时长。这是唯一有意面向公网的路由，因此在设置 <code>REMOTE_PUSH_TOKEN</code> 之前保持禁用，拒绝 <code>?token=</code> 而不是让凭据泄漏到代理日志中，单批次上限 1000 项，并拒绝已被本地或 SSH 拉取的运行占用的会话。",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.plain.zh, {
+  "Remote Push Ingestion": "远程推送采集",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.vi, {
+  "Some machines SSH can never reach — a roaming laptop behind NAT, a CGNAT'd home line. Those push instead: <code>POST /api/hooks/ingest-batch</code> takes one batch of token buckets (each a full current total, not a delta), tool events, and turn durations. It is the only route meant to face the public internet, so it stays disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> rather than leak a credential into a proxy log, caps a batch at 1000 items, and refuses a session a local or SSH-pulled run already owns.":
+    "Có những máy SSH không bao giờ với tới — laptop roaming sau NAT, đường truyền gia đình bị CGNAT. Những máy đó đẩy dữ liệu lên thay thế: <code>POST /api/hooks/ingest-batch</code> nhận mỗi lần một batch gồm các bucket token (mỗi mục là tổng hiện tại đầy đủ, không phải delta), tool event và thời lượng lượt. Đây là route duy nhất được thiết kế hướng ra internet công cộng, nên nó vẫn bị tắt cho tới khi đặt <code>REMOTE_PUSH_TOKEN</code>, từ chối <code>?token=</code> thay vì để credential rò rỉ vào log proxy, giới hạn mỗi batch 1000 mục, và từ chối một phiên đã thuộc về một lần chạy local hoặc kéo qua SSH.",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.plain.vi, {
+  "Remote Push Ingestion": "Thu thập bằng remote push",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.ko, {
+  "Some machines SSH can never reach — a roaming laptop behind NAT, a CGNAT'd home line. Those push instead: <code>POST /api/hooks/ingest-batch</code> takes one batch of token buckets (each a full current total, not a delta), tool events, and turn durations. It is the only route meant to face the public internet, so it stays disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> rather than leak a credential into a proxy log, caps a batch at 1000 items, and refuses a session a local or SSH-pulled run already owns.":
+    "SSH가 결코 닿을 수 없는 머신이 있습니다 — NAT 뒤의 로밍 노트북, CGNAT 가정용 회선. 그런 머신은 대신 푸시합니다. <code>POST /api/hooks/ingest-batch</code>는 token 버킷(각각 델타가 아니라 현재 전체 합계), 도구 이벤트, 턴 소요 시간으로 이루어진 배치를 한 번에 받습니다. 공개 인터넷을 향하도록 의도된 유일한 라우트이므로 <code>REMOTE_PUSH_TOKEN</code>을 설정하기 전까지 비활성 상태를 유지하고, 자격 증명이 프록시 로그로 새어 나가지 않도록 <code>?token=</code>을 거부하며, 배치를 1000개 항목으로 제한하고, 로컬 또는 SSH로 가져온 실행이 이미 소유한 세션은 거부합니다.",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.plain.ko, {
+  "Remote Push Ingestion": "원격 푸시 수집",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.es, {
+  "Some machines SSH can never reach — a roaming laptop behind NAT, a CGNAT'd home line. Those push instead: <code>POST /api/hooks/ingest-batch</code> takes one batch of token buckets (each a full current total, not a delta), tool events, and turn durations. It is the only route meant to face the public internet, so it stays disabled until <code>REMOTE_PUSH_TOKEN</code> is set, rejects <code>?token=</code> rather than leak a credential into a proxy log, caps a batch at 1000 items, and refuses a session a local or SSH-pulled run already owns.":
+    "Hay máquinas a las que SSH nunca llega: un portátil itinerante tras NAT, una línea doméstica con CGNAT. Esas envían en su lugar: <code>POST /api/hooks/ingest-batch</code> acepta un lote de buckets de tokens (cada uno un total actual completo, no un delta), eventos de herramienta y duraciones de turno. Es la única ruta pensada para mirar a la internet pública, así que permanece deshabilitada hasta configurar <code>REMOTE_PUSH_TOKEN</code>, rechaza <code>?token=</code> en vez de filtrar una credencial a un registro del proxy, limita el lote a 1000 elementos y rechaza una sesión que ya pertenezca a una ejecución local o extraída por SSH.",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.plain.es, {
+  "Remote Push Ingestion": "Ingesta por remote push",
 });

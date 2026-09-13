@@ -339,6 +339,7 @@ Dashboard 提供全面的功能来监控和分析你的 Claude Code 会话和 Ag
 | **预存会话检测** | 服务器启动时已在运行的会话以"活跃"状态导入（基于近期 JSONL 文件修改时间）。Stop 事件也会重新激活已导入的完成/废弃会话，因此进行中的会话的第一个 Hook 始终会显示在 Dashboard 上 |
 | **持续项目同步** | 启动时对 `~/.claude/projects` 的自动导入是一次性的（由标记位把关），因此在首次启动**之后**才创建的项目文件夹——其会话从不经过 Hook 流入（例如 host-only Hook 被禁用）——在手动重新扫描之前都将不可见。后台同步（`startSessionSync`）通过三个共享同一个 mtime 缓存 + 单次合并扫描的触发器弥补了这个空隙：启动时的**立即**扫描、一个去抖的 **`fs.watch`**（新会话文件 / 项目文件夹一出现就触发；在 macOS/Windows 上递归监听，在 Linux 上监听根目录 + 直接子文件夹，以规避用户态递归监听器的隐患），以及一个**周期性轮询**（`DASHBOARD_SESSION_SYNC_MS`，默认 30 秒）。每次扫描只重新解析 mtime 前进过的文件，并广播 `session_created`/`session_updated`（外加主 Agent），让 UI 实时刷新；DB 中已有且未变更的会话会被跳过、不再重新解析，因此重启成本保持为 O(新增/变更文件) |
 | **远程数据源** | 通过 SSH 实时从其他机器收集 Claude Code 和 Codex 数据。每个来源独立镜像 `~/.claude/projects` 与 `~/.codex/sessions`（另含 Codex 的轻量 `session_index.jsonl`，保留原生重命名标题），使用 **scp**；WSL 内 CLI 则使用 `wsl.exe` + `tar`。隔离暂存区使用各 provider 的本地导入器，并以 `sessions.source` 标记会话；一个来源可以仅有 Claude、仅有 Codex 或两者兼具。`DASHBOARD_REMOTE_SYNC_MS`（默认 15 秒）轮询会发布按 provider 划分的状态和计数。某个 provider 缺失、报错或卡住时，只有它的旧会话进入 stale 扫描，健康的兄弟 provider 仍由镜像管理。在 **Settings → Remote Data Sources** 或通过 `ccam remote-sources` 可选地配置独立的远程 Claude 主目录和远程 Codex 主目录；SSH 认证仍完全由主机负责，不保存任何秘密。 |
+| **远程推送采集** | 第三条会话数据采集路径，面向 SSH 无法触达的机器：处于 NAT 后的漫游笔记本、被 CGNAT 的家庭宽带，改为由它**推送**自己的会话数据，而不是由仪表盘去拉取。`POST /api/hooks/ingest-batch` 每次接收一个批次 —— Token 分桶（每一项都是该分桶当前的完整总计，如同重新解析 Transcript，而非增量）、工具事件和回合时长 —— 并且是整个 Server 中唯一有意可从公网访问的路由。因此它**在设置 `REMOTE_PUSH_TOKEN` 之前处于禁用状态**（否则返回 `503 REMOTE_PUSH_NOT_CONFIGURED`），由自己的 token 而非 `DASHBOARD_HOOK_TOKEN` 把守，使加固回环 Hook 路由绝不会顺带开放这一条；并拒绝 `?token=`，以免凭据落入代理访问日志。条目按 `(session_id, event_type, uuid)` 针对已提交行以及同一批次内部去重，因此重发是安全的；单批次上限 1000 项（`413 BATCH_TOO_LARGE`）；已被本地或 SSH 拉取会话占用的 `session_id` 会被逐项拒绝（`SESSION_LOCALLY_OWNED`），而不是允许其劫持 —— 被推送的会话只能创建新会话，或追加到它自己创建的会话。部分失败仍返回 `200` 并带逐项 `errors[]`，广播则在事务提交之后才触发。 |
 | **响应式设计** | 适配移动端的布局，堆叠网格、可滚动表格和可折叠侧边栏 |
 | **界面本地化** | 内置语言切换，UI 文案与无障碍标签已覆盖英文（`en`）、中文（`zh`）、越南语（`vi`）和韩语（`ko`）及西班牙语（`es`）。覆盖范围现已贯穿 Workflows 页面的所有 tooltip：统计卡片的计算说明与按值分桶的解读、每个图表的「此图展示什么 / 如何阅读 / 为何重要」浮层、所有图形悬停 tooltip（编排 DAG、工具流、Pipeline、模型委派、并发时间线）、Workflow Patterns 详情面板的叙述与建议、设置页 → 模型定价的信息浮层、CLAUDE_HOME 面板，以及完整的 Import History 流程 |
 | **种子数据** | 内置种子脚本，用于演示和开发 |
@@ -633,7 +634,8 @@ flowchart LR
 | `DASHBOARD_PORT` | `4820` | Express 服务器端口 |
 | `CLAUDE_DASHBOARD_PORT` | `4820` | Hook Handler 连接服务器使用的端口 |
 | `DASHBOARD_TOKEN_FILE` | _(未设置)_ | Docker/Kubernetes Secret 使用的文件型 Dashboard token |
-| `DASHBOARD_HOOK_TOKEN` / `_FILE` | _(未设置)_ | 远程 `/api/hooks/*` 采集的独立 token |
+| `DASHBOARD_HOOK_TOKEN` / `_FILE` | _(未设置)_ | 回环 Hook 路由（`/api/hooks/event`、`/api/hooks/codex`）暴露到回环之外时使用的独立 token |
+| `REMOTE_PUSH_TOKEN` / `REMOTE_PUSH_TOKEN_FILE` | _(未设置)_ | 单独把守 `POST /api/hooks/ingest-batch`（面向公网的远程推送路由，默认禁用）的 token。刻意与上面的 `DASHBOARD_HOOK_TOKEN` 相互独立 —— 设置后者绝不应顺带开放这条可从互联网写入的路由 |
 | `DASHBOARD_ENV_PATH` | 仓库 `.env` | Settings 持久化配置所用的可写 dotenv 路径 |
 | `CCAM_DASHBOARD_URL` | 本地发现 | 远程 Hook 目标；非 loopback 必须使用 HTTPS |
 | `CCAM_HOOK_TOKEN` / `_FILE` | _(未设置)_ | Hook handler 发送的凭据 |
@@ -644,6 +646,7 @@ flowchart LR
 | `DASHBOARD_SESSION_SYNC_MS` | `30000` | 持续 `~/.claude/projects` 后台同步的轮询间隔（毫秒），用于显示启动后才加入、其会话从不经过 Hook 流入的项目。无论如何 `fs.watch` 监听器都会近乎即时触发；该轮询是安全兜底（监听器可能错过事件 / 在网络文件系统上不触发）。设为 `0` 可禁用轮询，同时让监听器保持运行 |
 | `DASHBOARD_CODEX_HOME` | `CODEX_HOME` 或 `~/.codex` | 可选的本地 Codex 状态目录。在设置中保存新位置会持久化此仪表盘专用覆盖、重新启用实时监视，并立即扫描新的 `sessions/` 树。 |
 | `DASHBOARD_CODEX_SYNC_MS` | `4000` | 仅追加 Codex rollout 的安全兜底轮询间隔（毫秒）。Codex Hook 会立即触发同一个增量采集器；设为 `0` 仅禁用轮询，在可用时仍保留文件系统监听器。 |
+| `DASHBOARD_CODEX_MAX_ATTEMPTS` | `5` | Codex 扫描针对同一个**未发生变化**的 rollout 连续尝试采集的失败次数上限，超出后便不再重试。扫描会刻意重新排队一个读取失败的 rollout，使瞬时故障（`SQLITE_BUSY`、写了一半的记录）在下一轮恢复；若不设上限，*永久性*故障会在整个进程生命周期内不断重复 —— 按 `DASHBOARD_CODEX_SYNC_MS` 默认的 4 秒计算，每个文件每天约 21,600 次尝试，每次都在单一 Node 线程上写一行日志。该计数包含第一次尝试、按文件独立统计，并在文件的大小或 mtime 发生变化时完全恢复，因此仅仅是写了一半的 rollout 仍能自行恢复。耗尽预算的那一次尝试会记录一条日志并注明上限。若慢速或不稳定的卷需要超过几轮扫描才能稳定，可调高此值 |
 | `DASHBOARD_CODEX_HOOK_IDLE_SECONDS` | `60` | **仅靠 hook** 的 Codex 会话（运行时未将 rollout 写入磁盘，如 `codex exec --ephemeral`）在已报告结束的回合迟迟得不到响应时，可等待多久才判定其 `SessionEnd` hook 已丢失。只有 `awaiting_reason` 为 `stop` 的会话才符合条件：Codex 会在 `Stop` 之后几百毫秒内发送 `SessionEnd`，因此无人应答的 `Stop` 是真实证据。静默被刻意排除在触发条件之外——没有 rollout 的运行在整个工具调用期间完全不发出 hook，基于空闲时间的规则会误将正在运行的 CI 构建判定为已完成 |
 | `DASHBOARD_TASK_SUMMARY_TTL_MS` | `2000` | 任务进度缓存的宽限窗口（毫秒），作用于 `include_task_progress` 列表请求**以及**会话详情的 `todo_snapshot`。正在持续追加的转录文件几乎无法命中 size+mtime 缓存键，增长的转录会从其最后一条完整 JSONL 行开始增量解析，而此下限仍会把一连串列表刷新（例如仪表盘随 Hook 驱动的 WebSocket 事件刷新）合并为一次解析。窗口内改为返回刚解析的（略有滞后、仅用于展示的）结果；设为 `0` 则每次追加都立即解析 |
 | `DASHBOARD_REMOTE_SYNC_MS` | `15000` | **远程数据源**后台同步的间隔（毫秒），会独立拉取每个已启用远程的 `~/.claude/projects` 和 `~/.codex/sessions`（另含 Codex 的轻量 `session_index.jsonl` 标题索引），再分别通过本地导入器重新导入。新增或重新启用数据源时也会立即同步一次。设为 `0` 可禁用远程源轮询 |
@@ -1178,6 +1181,7 @@ npm run monitoring:docker:up
 | 方法 | 路径 | 描述 |
 | ------ | ------------------ | -------------------------------------------- |
 | `POST` | `/api/hooks/event` | 接收并处理 Claude Code Hook 事件 |
+| `POST` | `/api/hooks/ingest-batch` | 由处于漫游/NAT 后方的机器推送一批会话数据（默认禁用；参见下文的 `REMOTE_PUSH_TOKEN` 以及 `server/README.md` 中完整的载荷结构） |
 
 **Hook 事件载荷：**
 
@@ -1359,6 +1363,8 @@ Dashboard 处理以下 Claude Code Hook 类型：
 | `SessionEnd` | Claude Code CLI 进程退出 | 清除等待标志。如果会话已处于 `error` 状态，则保留错误状态；否则将所有 Agent 和会话标记为 `completed` |
 | `Compaction` | JSONL 中检测到 `/compact` | 创建压缩子 Agent（类型 `compaction`）和 Compaction 事件。通过 Transcript JSONL 中的 `isCompactSummary` 条目检测。也可由周期性扫描器对活跃会话检测 |
 | `APIError` | JSONL Transcript 中的 API 错误 | 从 `isApiErrorMessage` 条目（配额、速率限制、invalid_request）和原始 `type: "error"` 响应中提取。**立即将会话和 Agent 标记为 `error`** — 之前仅记录事件而不更改状态。存储为包含错误详情的事件 |
+| `RemoteToolEvent` | 由远程机器推送的工具调用 | 由 `POST /api/hooks/ingest-batch` 为推送的每一项 `tool_events[]` 写入。按 `(session_id, event_type, uuid)` 针对已提交行以及同一批次内部去重，因此重发批次是安全的 |
+| `RemoteTurn` | 由远程机器推送的回合时长 | 由 `POST /api/hooks/ingest-batch` 为每一项 `turns[]` 写入，携带该回合的 `duration_ms`。去重方式与 `RemoteToolEvent` 相同 |
 | `Interrupted` | 用户取消的回合（Esc） | 由看门狗合成 —— `Esc` 不触发任何 Hook，因此从 Transcript 的 `[Request interrupted by user]` 标记，或当 Esc 发生在任何输出之前时从空闲工作超时（`DASHBOARD_WORKING_IDLE_SECONDS`）检测出卡住的 `working` 会话。会话转入**等待中**（与正常 `Stop` 相同） |
 | `TurnDuration` | JSONL Transcript 中的回合计时 | 从 `system` 子类型 `turn_duration` 消息中提取，含 `durationMs`。存储为回合级计时分析事件 |
 | `ToolError` | JSONL 中的工具结果错误 | 从 `toolUseResult.is_error` 条目中提取。追踪工具级失败用于错误传播分析 |
