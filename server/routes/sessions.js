@@ -336,6 +336,7 @@ router.get("/", (req, res) => {
           row.cost = sessionTokens
             ? calculateProviderCost(sessionTokens, rules, gptRules, row.started_at).total_cost
             : 0;
+          row.has_token_usage = Boolean(sessionTokens);
         }
       }
 
@@ -397,6 +398,7 @@ router.get("/", (req, res) => {
         row.cost = sessionTokens
           ? calculateProviderCost(sessionTokens, rules, gptRules, row.started_at).total_cost
           : 0;
+        row.has_token_usage = Boolean(sessionTokens);
       }
     }
   }

@@ -291,6 +291,53 @@ describe("Sessions API", () => {
     assert.ok(res.body.sessions.length >= 2);
   });
 
+  it("reports repository identity and durable-token coverage independently of cost in both list orderings", async () => {
+    // Keep this regression independently runnable under --test-name-pattern;
+    // the ordinary CRUD setup tests may be skipped in that mode.
+    if (!stmts.getSession.get("sess-1")) {
+      stmts.insertSession.run(
+        "sess-1",
+        "Test Session",
+        "active",
+        "/home/test",
+        "gpt-6-astra",
+        null
+      );
+    }
+    if (!stmts.getSession.get("sess-2")) {
+      stmts.insertSession.run("sess-2", "Session Two", "active", null, null, null);
+    }
+    db.prepare("UPDATE sessions SET repo_remote_url = ? WHERE id = ?").run(
+      "ssh://git@example.internal:2222/team/project.git",
+      "sess-1"
+    );
+    stmts.replaceTokenUsage.run(
+      "sess-1",
+      "gpt-6-astra",
+      "standard",
+      "global",
+      "standard",
+      100,
+      10,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    );
+
+    for (const query of ["", "?sort_by=price"]) {
+      const res = await fetch(`/api/sessions${query}`);
+      assert.equal(res.status, 200);
+      const withUsage = res.body.sessions.find((session) => session.id === "sess-1");
+      const withoutUsage = res.body.sessions.find((session) => session.id === "sess-2");
+      assert.equal(withUsage.repo_remote_url, "ssh://git@example.internal:2222/team/project.git");
+      assert.equal(withUsage.has_token_usage, true);
+      assert.equal(withoutUsage.has_token_usage, false);
+    }
+  });
+
   it("should filter sessions by status", async () => {
     const res = await fetch("/api/sessions?status=active");
     assert.equal(res.status, 200);
@@ -750,6 +797,7 @@ describe("Hook Event Processing", () => {
       hook_type: "PreToolUse",
       data: {
         session_id: "hook-sess-1",
+        repo_remote_url: "ssh://git@example.internal:2222/team/hook-project.git",
         tool_name: "Read",
         tool_input: { file_path: "/test.ts" },
       },
@@ -763,6 +811,10 @@ describe("Hook Event Processing", () => {
     const sessRes = await fetch("/api/sessions/hook-sess-1");
     assert.equal(sessRes.status, 200);
     assert.equal(sessRes.body.session.status, "active");
+    assert.equal(
+      sessRes.body.session.repo_remote_url,
+      "ssh://git@example.internal:2222/team/hook-project.git"
+    );
 
     // Verify main agent was created
     const agentRes = await fetch("/api/agents/hook-sess-1-main");

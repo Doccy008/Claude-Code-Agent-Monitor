@@ -182,6 +182,12 @@ function ensureSession(sessionId, data) {
   if (typeof data.transcript_path === "string" && data.transcript_path) {
     stmts.setSessionTranscriptPath.run(data.transcript_path, sessionId);
   }
+  // The local hook is authenticated before it reaches this route. Persist the
+  // first collector-observed Git remote as opaque metadata; presentation
+  // clients own URL canonicalization and matching policy.
+  if (typeof data.repo_remote_url === "string" && data.repo_remote_url) {
+    stmts.setSessionRepoRemoteUrl.run(data.repo_remote_url, sessionId);
+  }
   return session;
 }
 
@@ -2147,6 +2153,14 @@ router.post("/ingest-batch", (req, res) => {
       );
       session = stmts.getSession.get(sessionId);
       pendingBroadcasts.push(["session_created", session]);
+    }
+
+    // Remote-push authentication establishes the collector identity. Preserve
+    // only its first non-empty repository URL so retries and later batches
+    // cannot rewrite a session's cross-machine mapping.
+    if (typeof body.repo_remote_url === "string" && body.repo_remote_url) {
+      stmts.setSessionRepoRemoteUrl.run(body.repo_remote_url, sessionId);
+      session = stmts.getSession.get(sessionId);
     }
 
     // Ensure the main agent row exists before any event below references it —
