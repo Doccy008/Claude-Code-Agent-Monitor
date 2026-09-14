@@ -798,7 +798,8 @@ describe("Hook Event Processing", () => {
       hook_type: "PreToolUse",
       data: {
         session_id: "hook-sess-1",
-        repo_remote_url: "ssh://collector@example.internal:2222/team/hook-project.git",
+        repo_remote_url:
+          "ssh://collector@example.internal:2222/team/hook-project.git?ref=fixture#readme",
         tool_name: "Read",
         tool_input: { file_path: "/test.ts" },
       },

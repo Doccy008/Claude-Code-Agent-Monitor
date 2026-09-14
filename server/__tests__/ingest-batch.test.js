@@ -196,7 +196,7 @@ describe("POST /api/hooks/ingest-batch", () => {
       provider: "codex",
       session_name: "My roaming laptop session",
       cwd: "/home/bap/work",
-      repo_remote_url: "ssh://collector@example.internal:2222/team/project.git",
+      repo_remote_url: "ssh://collector@example.internal:2222/team/project.git?ref=fixture#readme",
       model: "gpt-5.6",
     });
     assert.equal(res.status, 200);

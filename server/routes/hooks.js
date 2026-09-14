@@ -48,9 +48,10 @@ function isWaitingForUserMessage(msg) {
 }
 
 /**
- * Removes credentials/usernames from a collector-provided Git remote before
- * it reaches durable storage or an API response. Both URL and SCP-like Git
- * remotes are accepted; repository matching does not need the userinfo.
+ * Removes credentials, query values, and fragments from a collector-provided
+ * Git remote before it reaches durable storage or an API response. Both URL
+ * and SCP-like Git remotes are accepted; repository matching needs only the
+ * credential-free repository identity.
  *
  * @param {unknown} value Collector-provided remote URL.
  * @returns {string|null} Sanitized non-empty remote, or null when unavailable.
@@ -61,9 +62,11 @@ function sanitizeRepoRemoteUrl(value) {
   if (!remote) return null;
   try {
     const parsed = new URL(remote);
-    if (parsed.username || parsed.password) {
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
       parsed.username = "";
       parsed.password = "";
+      parsed.search = "";
+      parsed.hash = "";
       return parsed.toString();
     }
   } catch {
