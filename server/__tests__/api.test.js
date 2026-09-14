@@ -798,8 +798,7 @@ describe("Hook Event Processing", () => {
       hook_type: "PreToolUse",
       data: {
         session_id: "hook-sess-1",
-        repo_remote_url:
-          "ssh://collector@example.internal:2222/team/hook-project.git?ref=fixture#readme",
+        repo_remote_url: "collector@example.internal:team/hook-project.git?ref=fixture#readme",
         tool_name: "Read",
         tool_input: { file_path: "/test.ts" },
       },
@@ -813,16 +812,13 @@ describe("Hook Event Processing", () => {
     const sessRes = await fetch("/api/sessions/hook-sess-1");
     assert.equal(sessRes.status, 200);
     assert.equal(sessRes.body.session.status, "active");
-    assert.equal(
-      sessRes.body.session.repo_remote_url,
-      "ssh://example.internal:2222/team/hook-project.git"
-    );
+    assert.equal(sessRes.body.session.repo_remote_url, "example.internal:team/hook-project.git");
     const storedEvent = db
       .prepare("SELECT data FROM events WHERE session_id = ? ORDER BY id DESC LIMIT 1")
       .get("hook-sess-1");
     assert.equal(
       JSON.parse(storedEvent.data).repo_remote_url,
-      "ssh://example.internal:2222/team/hook-project.git",
+      "example.internal:team/hook-project.git",
       "the persisted event envelope must not retain collector userinfo"
     );
 

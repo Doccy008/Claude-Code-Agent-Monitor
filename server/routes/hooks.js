@@ -72,7 +72,7 @@ function sanitizeRepoRemoteUrl(value) {
   } catch {
     // SCP-like Git syntax (for example git@host:org/repo.git) is not a URL.
   }
-  return remote.replace(/^[^@/\s:]+@(?=[^@/\s:]+:)/, "");
+  return remote.replace(/^[^@/\s:]+@(?=[^@/\s:]+:)/, "").replace(/[?#].*$/, "");
 }
 
 function clearAwaitingInput(sessionId, mainAgentId, broadcastUpdates) {
