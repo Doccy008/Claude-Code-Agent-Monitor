@@ -163,6 +163,15 @@ function recoverInterruptedSession(sessionId, fullSess, mainAgentId, reasonSuffi
   });
 }
 
+/**
+ * Finds or creates the session/main-agent pair for a validated hook envelope,
+ * then applies one-shot collector metadata such as transcript and repository
+ * identity fields.
+ *
+ * @param {string} sessionId Session identifier from the hook payload.
+ * @param {Record<string, unknown>} data Sanitized hook payload.
+ * @returns {object|null} Current session row, or null after a failed insert.
+ */
 function ensureSession(sessionId, data) {
   let session = stmts.getSession.get(sessionId);
   if (!session) {
@@ -364,7 +373,25 @@ function syncCardPromptPreview(sessionId, result) {
   }
 }
 
+/**
+ * Processes and durably records one hook event in a SQLite transaction.
+ * Collector-provided repository identity is normalized before any writer sees
+ * the payload, including the full envelope retained in `events.data`.
+ *
+ * @param {string} hookType Canonical hook event type.
+ * @param {Record<string, unknown>} data Hook payload.
+ * @returns {object|null} Broadcast-ready event, or null without a session id.
+ */
 const processEvent = db.transaction((hookType, data) => {
+  // `events.data` stores the entire hook envelope. Normalize the field before
+  // ANY downstream work so its original userinfo cannot bypass the sanitized
+  // session column through this separate durable persistence path.
+  if (Object.prototype.hasOwnProperty.call(data, "repo_remote_url")) {
+    const repoRemoteUrl = sanitizeRepoRemoteUrl(data.repo_remote_url);
+    data = { ...data };
+    if (repoRemoteUrl) data.repo_remote_url = repoRemoteUrl;
+    else delete data.repo_remote_url;
+  }
   const sessionId = data.session_id;
   if (!sessionId) return null;
 
