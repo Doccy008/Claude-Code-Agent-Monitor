@@ -125,7 +125,7 @@ GET /api/sessions
 Returns all sessions, ordered by most recent activity. Each row exposes `has_token_usage` when
 the cost calculation ran: it is the authoritative durable-token existence flag and must not be
 inferred from `cost` (zero can be valid). `repo_remote_url`, when present, is the opaque Git
-remote first observed by an authenticated collector; clients may canonicalize it to match the
+remote (with URL userinfo removed) first observed by an authenticated collector; clients may canonicalize it to match the
 same repository across machine-local `cwd` paths. Each row may include an optional
 `prompt_preview` for compact cards: the two newest distinct real human prompts, oldest to
 newest and newline-separated. Claude Code persists this bounded summary from the local JSONL
@@ -1227,7 +1227,7 @@ logs.
 | `provider` | string | Yes | `claude` or `codex` |
 | `session_name` | string | No | Display name; defaults to `Session <id8>` |
 | `cwd` | string | No | Working directory on the pushing machine |
-| `repo_remote_url` | string | No | Opaque Git remote URL; the authenticated collector's first non-empty value is retained for cross-machine repository matching |
+| `repo_remote_url` | string | No | Git remote URL; URL userinfo is removed, then the authenticated collector's first non-empty value is retained for cross-machine repository matching |
 | `model` | string | No | Model id for the session |
 | `tokens` | array | No | Each entry is that bucket's **full current total** (like a transcript re-parse), **not** a delta |
 | `tool_events` | array | No | Tool calls, stored as `RemoteToolEvent` events |

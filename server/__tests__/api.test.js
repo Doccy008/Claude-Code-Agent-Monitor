@@ -797,7 +797,7 @@ describe("Hook Event Processing", () => {
       hook_type: "PreToolUse",
       data: {
         session_id: "hook-sess-1",
-        repo_remote_url: "ssh://git@example.internal:2222/team/hook-project.git",
+        repo_remote_url: "ssh://collector:example@example.internal:2222/team/hook-project.git",
         tool_name: "Read",
         tool_input: { file_path: "/test.ts" },
       },
@@ -813,7 +813,7 @@ describe("Hook Event Processing", () => {
     assert.equal(sessRes.body.session.status, "active");
     assert.equal(
       sessRes.body.session.repo_remote_url,
-      "ssh://git@example.internal:2222/team/hook-project.git"
+      "ssh://example.internal:2222/team/hook-project.git"
     );
 
     // Verify main agent was created

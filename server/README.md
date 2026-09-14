@@ -570,9 +570,9 @@ Request body:
 
 `provider` must be one of `claude`/`codex`. `tokens[]` entries are each
 bucket's **full current total** (like a transcript re-parse), not a delta.
-`repo_remote_url`, when supplied, is retained only from the authenticated
-collector's first non-empty batch and returned on Session rows as an opaque
-cross-machine repository identity.
+`repo_remote_url`, when supplied, has URL userinfo removed before the authenticated
+collector's first non-empty value is retained and returned on Session rows as a
+credential-free cross-machine repository identity.
 `tool_events[]`/`turns[]` are deduped by `(session_id, event_type, uuid)`,
 both against previously-committed rows and within the same batch — safe to
 resend. `tokens.length + tool_events.length + turns.length` is capped at 1000

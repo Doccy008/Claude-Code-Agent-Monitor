@@ -357,7 +357,7 @@ function createOpenApiSpec() {
               type: "string",
               nullable: true,
               description:
-                "Opaque Git remote URL first observed by an authenticated collector. Consumers may canonicalize it to match a repository across machine-local working-directory paths.",
+                "Credential-free Git remote URL first observed by an authenticated collector. Consumers may canonicalize it to match a repository across machine-local working-directory paths.",
             },
             model: { type: "string", nullable: true },
             started_at: { type: "string", format: "date-time" },
@@ -2297,7 +2297,7 @@ function createOpenApiSpec() {
                     repo_remote_url: {
                       type: "string",
                       description:
-                        "Optional opaque Git remote URL. The authenticated collector's first non-empty value is retained for cross-machine repository matching.",
+                        "Optional Git remote URL. Userinfo is removed, then the authenticated collector's first non-empty value is retained for cross-machine repository matching.",
                     },
                     model: { type: "string" },
                     tokens: {

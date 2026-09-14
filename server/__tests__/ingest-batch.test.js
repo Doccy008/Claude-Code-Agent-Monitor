@@ -196,7 +196,7 @@ describe("POST /api/hooks/ingest-batch", () => {
       provider: "codex",
       session_name: "My roaming laptop session",
       cwd: "/home/bap/work",
-      repo_remote_url: "ssh://git@example.internal:2222/team/project.git",
+      repo_remote_url: "ssh://collector:example@example.internal:2222/team/project.git",
       model: "gpt-5.6",
     });
     assert.equal(res.status, 200);
@@ -208,7 +208,7 @@ describe("POST /api/hooks/ingest-batch", () => {
     assert.equal(session.provider, "codex");
     assert.equal(session.name, "My roaming laptop session");
     assert.equal(session.cwd, "/home/bap/work");
-    assert.equal(session.repo_remote_url, "ssh://git@example.internal:2222/team/project.git");
+    assert.equal(session.repo_remote_url, "ssh://example.internal:2222/team/project.git");
     assert.equal(session.model, "gpt-5.6");
     assert.equal(session.status, "active");
 
@@ -234,7 +234,7 @@ describe("POST /api/hooks/ingest-batch", () => {
     assert.equal(second.status, 200);
     assert.equal(
       stmts.getSession.get(sessionId).repo_remote_url,
-      "ssh://git@example.internal:2222/team/original.git"
+      "ssh://example.internal:2222/team/original.git"
     );
   });
 

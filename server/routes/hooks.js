@@ -47,6 +47,31 @@ function isWaitingForUserMessage(msg) {
   return WAITING_INPUT_PATTERN.test(msg);
 }
 
+/**
+ * Removes credentials/usernames from a collector-provided Git remote before
+ * it reaches durable storage or an API response. Both URL and SCP-like Git
+ * remotes are accepted; repository matching does not need the userinfo.
+ *
+ * @param {unknown} value Collector-provided remote URL.
+ * @returns {string|null} Sanitized non-empty remote, or null when unavailable.
+ */
+function sanitizeRepoRemoteUrl(value) {
+  if (typeof value !== "string") return null;
+  const remote = value.trim();
+  if (!remote) return null;
+  try {
+    const parsed = new URL(remote);
+    if (parsed.username || parsed.password) {
+      parsed.username = "";
+      parsed.password = "";
+      return parsed.toString();
+    }
+  } catch {
+    // SCP-like Git syntax (for example git@host:org/repo.git) is not a URL.
+  }
+  return remote.replace(/^[^@/\s:]+@(?=[^@/\s:]+:)/, "");
+}
+
 function clearAwaitingInput(sessionId, mainAgentId, broadcastUpdates) {
   // Clear waiting flag on the main agent and any other agents on this session
   // (subagents don't normally enter waiting state, but keep them in sync just
@@ -185,8 +210,9 @@ function ensureSession(sessionId, data) {
   // The local hook is authenticated before it reaches this route. Persist the
   // first collector-observed Git remote as opaque metadata; presentation
   // clients own URL canonicalization and matching policy.
-  if (typeof data.repo_remote_url === "string" && data.repo_remote_url) {
-    stmts.setSessionRepoRemoteUrl.run(data.repo_remote_url, sessionId);
+  const repoRemoteUrl = sanitizeRepoRemoteUrl(data.repo_remote_url);
+  if (repoRemoteUrl) {
+    stmts.setSessionRepoRemoteUrl.run(repoRemoteUrl, sessionId);
   }
   return session;
 }
@@ -2158,8 +2184,9 @@ router.post("/ingest-batch", (req, res) => {
     // Remote-push authentication establishes the collector identity. Preserve
     // only its first non-empty repository URL so retries and later batches
     // cannot rewrite a session's cross-machine mapping.
-    if (typeof body.repo_remote_url === "string" && body.repo_remote_url) {
-      stmts.setSessionRepoRemoteUrl.run(body.repo_remote_url, sessionId);
+    const repoRemoteUrl = sanitizeRepoRemoteUrl(body.repo_remote_url);
+    if (repoRemoteUrl) {
+      stmts.setSessionRepoRemoteUrl.run(repoRemoteUrl, sessionId);
       session = stmts.getSession.get(sessionId);
     }
 
