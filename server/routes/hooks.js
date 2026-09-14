@@ -174,6 +174,7 @@ function recoverInterruptedSession(sessionId, fullSess, mainAgentId, reasonSuffi
  */
 function ensureSession(sessionId, data) {
   let session = stmts.getSession.get(sessionId);
+  const repoRemoteUrl = sanitizeRepoRemoteUrl(data.repo_remote_url);
   if (!session) {
     stmts.insertSession.run(
       sessionId,
@@ -187,6 +188,13 @@ function ensureSession(sessionId, data) {
     if (!session) {
       console.error(`[HOOKS] Failed to create session ${sessionId} — insert returned no row`);
       return null;
+    }
+    // Persist collector identity before publishing the newly created row. A
+    // live subscriber must receive the same session shape a subsequent REST
+    // read gets, rather than a partial pre-enrichment snapshot.
+    if (repoRemoteUrl) {
+      stmts.setSessionRepoRemoteUrl.run(repoRemoteUrl, sessionId);
+      session = stmts.getSession.get(sessionId);
     }
     broadcast("session_created", session);
 
@@ -219,8 +227,7 @@ function ensureSession(sessionId, data) {
   // The local hook is authenticated before it reaches this route. Persist the
   // first collector-observed Git remote as opaque metadata; presentation
   // clients own URL canonicalization and matching policy.
-  const repoRemoteUrl = sanitizeRepoRemoteUrl(data.repo_remote_url);
-  if (repoRemoteUrl) {
+  if (repoRemoteUrl && session.repo_remote_url !== repoRemoteUrl) {
     stmts.setSessionRepoRemoteUrl.run(repoRemoteUrl, sessionId);
   }
   return session;
@@ -2188,6 +2195,7 @@ router.post("/ingest-batch", (req, res) => {
   const pendingBroadcasts = [];
   const writeBatch = db.transaction(() => {
     let session = existing;
+    const repoRemoteUrl = sanitizeRepoRemoteUrl(body.repo_remote_url);
     if (!session) {
       const sessionName =
         typeof body.session_name === "string" && body.session_name
@@ -2205,16 +2213,19 @@ router.post("/ingest-batch", (req, res) => {
         REMOTE_PUSH_SOURCE
       );
       session = stmts.getSession.get(sessionId);
-      pendingBroadcasts.push(["session_created", session]);
     }
 
     // Remote-push authentication establishes the collector identity. Preserve
     // only its first non-empty repository URL so retries and later batches
     // cannot rewrite a session's cross-machine mapping.
-    const repoRemoteUrl = sanitizeRepoRemoteUrl(body.repo_remote_url);
     if (repoRemoteUrl) {
       stmts.setSessionRepoRemoteUrl.run(repoRemoteUrl, sessionId);
       session = stmts.getSession.get(sessionId);
+    }
+    if (!existing) {
+      // Queue only the fully persisted row: flushing happens after this
+      // transaction commits, so WebSocket and REST clients see one contract.
+      pendingBroadcasts.push(["session_created", session]);
     }
 
     // Ensure the main agent row exists before any event below references it —

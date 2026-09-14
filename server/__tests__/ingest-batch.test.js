@@ -518,6 +518,33 @@ describe("POST /api/hooks/ingest-batch", () => {
     assert.equal(frame.data.created_at, explicitTs, "and both must match the supplied timestamp");
   });
 
+  it("broadcasts remote-push repo identity only after it is persisted", async () => {
+    const ws = new WebSocket(WS_BASE);
+    await new Promise((resolve, reject) => {
+      ws.once("open", resolve);
+      ws.once("error", reject);
+    });
+    const frames = [];
+    ws.on("message", (raw) => frames.push(JSON.parse(raw.toString())));
+
+    const sessionId = newSessionId("ws-repo-identity");
+    const res = await post({
+      session_id: sessionId,
+      provider: "codex",
+      repo_remote_url: "ssh://collector@example.internal:2222/team/live-project.git",
+    });
+    assert.equal(res.status, 200);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    ws.close();
+
+    const created = frames.find(
+      (frame) => frame.type === "session_created" && frame.data?.id === sessionId
+    );
+    assert.ok(created, "the real WebSocket receives session_created");
+    assert.equal(created.data.repo_remote_url, "ssh://example.internal:2222/team/live-project.git");
+    assert.equal(stmts.getSession.get(sessionId).repo_remote_url, created.data.repo_remote_url);
+  });
+
   it("rejects a malformed timestamp per-item (missing timestamp is fine, invalid one is not)", async () => {
     const sessionId = newSessionId("bad-timestamp");
     const res = await post({

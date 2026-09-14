@@ -9,6 +9,7 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const http = require("http");
+const WebSocket = require("ws");
 const pkg = require("../../package.json");
 
 // Set up test database BEFORE requiring any server modules
@@ -830,6 +831,36 @@ describe("Hook Event Processing", () => {
     assert.equal(agentRes.body.agent.type, "main");
     assert.equal(agentRes.body.agent.status, "working");
     assert.equal(agentRes.body.agent.current_tool, "Read");
+  });
+
+  it("broadcasts local-hook repo identity only after it is persisted", async () => {
+    const ws = new WebSocket(BASE.replace("http", "ws") + "/ws");
+    await new Promise((resolve, reject) => {
+      ws.once("open", resolve);
+      ws.once("error", reject);
+    });
+    const frames = [];
+    ws.on("message", (raw) => frames.push(JSON.parse(raw.toString())));
+
+    const sessionId = `hook-ws-${Date.now()}`;
+    const response = await post("/api/hooks/event", {
+      hook_type: "PreToolUse",
+      data: {
+        session_id: sessionId,
+        repo_remote_url: "ssh://collector@example.internal:2222/team/live-project.git",
+        tool_name: "Read",
+      },
+    });
+    assert.equal(response.status, 200);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    ws.close();
+
+    const created = frames.find(
+      (frame) => frame.type === "session_created" && frame.data?.id === sessionId
+    );
+    assert.ok(created, "the real WebSocket receives session_created");
+    assert.equal(created.data.repo_remote_url, "ssh://example.internal:2222/team/live-project.git");
+    assert.equal(stmts.getSession.get(sessionId).repo_remote_url, created.data.repo_remote_url);
   });
 
   it("should keep main agent working on PostToolUse and clear current_tool", async () => {
