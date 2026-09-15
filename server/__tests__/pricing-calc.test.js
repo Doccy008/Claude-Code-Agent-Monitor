@@ -381,6 +381,39 @@ describe("calculateGptCost — Codex pricing dimensions", () => {
       "the Grok row must show up as its OWN unpriced entry, not silently absorbed into Claude's numbers"
     );
   });
+
+  it("Grok rows carrying web-search/code-exec usage still cost $0 (CodeRabbit catch, PR #335)", () => {
+    // calculateCost's web-search/code-execution surcharges are billed by
+    // REQUEST COUNT, independent of whether a pricing `rule` matched -- an
+    // empty rule set alone zeroes TOKEN cost but NOT these two surcharges.
+    // AI-Deck's own Grok forwarder always sends 0 for these fields today, so
+    // this was latent rather than reachable through the current client, but
+    // calculateProviderCost must not silently depend on that staying true.
+    // Two SEPARATE rows: estimateCodeExecHours (lib/pricing-constants.js)
+    // treats code-exec as FREE whenever the same row also used web search,
+    // so a single combined row would let the code-exec half of this test
+    // pass even with the bug still present.
+    const r = calculateProviderCost(
+      [
+        {
+          ...bucket({ model: "grok-4-fast", web_search_requests: 2500 }), // $25 at RULES' rate if not stripped
+          provider: "grok",
+        },
+        {
+          ...bucket({ model: "grok-4-fast", code_execution_requests: 5_000_000 }), // far beyond the free allowance if not stripped
+          provider: "grok",
+        },
+      ],
+      RULES,
+      GPT_RULES
+    );
+    // total_cost sums claude+codex+grok (calculateProviderCost), so this
+    // only reads $0 if grok's OWN calculateCost() call actually saw zeroed
+    // surcharge fields -- the earlier "empty rule set" fix alone does not
+    // guarantee that (see comment above).
+    assert.equal(r.total_cost, 0, "token rate is zero AND the surcharges must be zeroed too");
+    assert.ok(r.breakdown.every((b) => b.cost === 0));
+  });
 });
 
 describe("calculateCost — date-effective (intro) pricing", () => {

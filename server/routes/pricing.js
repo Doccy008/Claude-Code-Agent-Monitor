@@ -325,7 +325,22 @@ function calculateProviderCost(tokenRows, claudePricingRules, gptPricingRules, a
   // Grok model name accidentally pattern-matching a REAL Claude rate and
   // getting billed at the wrong provider's price, and no risk of Grok's
   // token counts inflating Claude's own breakdown/unpriced totals.
-  const grok = calculateCost(grokRows, [], asOf);
+  //
+  // CodeRabbit catch on this PR: an empty rule set zeroes calculateCost's
+  // TOKEN pricing (no `rule` ever matches), but web-search/code-execution
+  // surcharges are billed by REQUEST COUNT independent of any pricing rule
+  // (see the wsCost/ceHours computation above -- neither is gated on
+  // `rule`). AI-Deck's own Grok forwarder always sends 0 for those fields
+  // today, so this is latent rather than active, but strip them here too
+  // so "Grok is always $0" holds even if a future sender ever populates
+  // them, instead of silently depending on the client staying well-behaved.
+  const grokTokenRowsOnly = grokRows.map((row) => ({
+    ...row,
+    web_search_requests: 0,
+    web_fetch_requests: 0,
+    code_execution_requests: 0,
+  }));
+  const grok = calculateCost(grokTokenRowsOnly, [], asOf);
 
   return {
     total_cost: round4(claude.total_cost + codex.total_cost + grok.total_cost),
