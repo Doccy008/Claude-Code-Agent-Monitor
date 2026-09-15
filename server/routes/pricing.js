@@ -310,18 +310,28 @@ function calculateGptCost(tokenRows, pricingRules) {
   };
 }
 
-/** Combine Claude and Codex accounting without ever applying one provider's rate card to the other. */
+/** Combine Claude, Codex and Grok accounting without ever applying one provider's rate card to another. */
 function calculateProviderCost(tokenRows, claudePricingRules, gptPricingRules, asOf) {
-  const claudeRows = tokenRows.filter((row) => row.provider !== "codex");
+  const claudeRows = tokenRows.filter((row) => row.provider !== "codex" && row.provider !== "grok");
   const codexRows = tokenRows.filter((row) => row.provider === "codex");
+  const grokRows = tokenRows.filter((row) => row.provider === "grok");
   const claude = calculateCost(claudeRows, claudePricingRules, asOf);
   const codex = calculateGptCost(codexRows, gptPricingRules);
+  // Grok has no pricing-rules table yet (PR #335 added the provider, not a
+  // rate card). Deliberately priced against an EMPTY rule set here rather
+  // than left inside claudeRows: an empty set makes every Grok bucket
+  // uniformly $0/unpriced by construction (same graceful "unpriced_models"
+  // surfacing as an unmatched Claude/Codex model gets), with no risk of a
+  // Grok model name accidentally pattern-matching a REAL Claude rate and
+  // getting billed at the wrong provider's price, and no risk of Grok's
+  // token counts inflating Claude's own breakdown/unpriced totals.
+  const grok = calculateCost(grokRows, [], asOf);
 
   return {
-    total_cost: round4(claude.total_cost + codex.total_cost),
-    breakdown: [...claude.breakdown, ...codex.breakdown],
+    total_cost: round4(claude.total_cost + codex.total_cost + grok.total_cost),
+    breakdown: [...claude.breakdown, ...codex.breakdown, ...grok.breakdown],
     feature_costs: claude.feature_costs,
-    unpriced_models: [...claude.unpriced_models, ...codex.unpriced_models],
+    unpriced_models: [...claude.unpriced_models, ...codex.unpriced_models, ...grok.unpriced_models],
   };
 }
 
