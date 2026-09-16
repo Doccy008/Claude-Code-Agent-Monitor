@@ -151,6 +151,10 @@ function post(urlPath, body) {
   return fetch(urlPath, { method: "POST", body });
 }
 
+function put(urlPath, body) {
+  return fetch(urlPath, { method: "PUT", body });
+}
+
 function patch(urlPath, body) {
   return fetch(urlPath, { method: "PATCH", body });
 }
@@ -712,6 +716,25 @@ describe("Settings and GPT pricing API", () => {
     }
   });
 
+  it("round-trips Fast long prices, preserves omitted fields, and rejects invalid rates atomically", async () => {
+    const rule = stmts.getGptPricing.get("gpt-6-astra%");
+    const response = await put("/api/pricing/gpt", { ...rule, fast_long_input_per_mtok: 41 });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.pricing.fast_long_input_per_mtok, 41);
+    const legacy = { ...rule };
+    for (const key of Object.keys(legacy)) if (key.startsWith("fast_long_")) delete legacy[key];
+    assert.equal((await put("/api/pricing/gpt", legacy)).status, 200);
+    assert.equal(stmts.getGptPricing.get(rule.model_pattern).fast_long_input_per_mtok, 41);
+    const invalid = await put("/api/pricing/gpt", {
+      ...rule,
+      fast_long_input_per_mtok: -1,
+      short_input_per_mtok: 999,
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal(stmts.getGptPricing.get(rule.model_pattern).short_input_per_mtok, 10);
+    await put("/api/pricing/gpt", rule);
+  });
+
   it("resets one provider without overwriting the other provider's custom rules", async () => {
     const claudePattern = "test-claude-custom%";
     const gptPattern = "test-gpt-custom%";
@@ -828,6 +851,41 @@ describe("Hook Event Processing", () => {
     assert.equal(agentRes.body.agent.type, "main");
     assert.equal(agentRes.body.agent.status, "working");
     assert.equal(agentRes.body.agent.current_tool, "Read");
+  });
+
+  it("discards malformed credential-bearing remotes before persisting sessions or events", async () => {
+    const sessionId = "malformed-remote";
+    await post("/api/hooks/event", {
+      hook_type: "PreToolUse",
+      data: {
+        session_id: sessionId,
+        tool_name: "Read",
+        repo_remote_url: "https://fixture-user:fixture-secret@example.internal:invalid/repo.git",
+      },
+    });
+    assert.equal(stmts.getSession.get(sessionId).repo_remote_url, null);
+    const event = db.prepare("SELECT data FROM events WHERE session_id = ?").get(sessionId);
+    assert.equal(JSON.parse(event.data).repo_remote_url, undefined);
+    await post("/api/hooks/event", {
+      hook_type: "PreToolUse",
+      data: {
+        session_id: sessionId,
+        tool_name: "Read",
+        repo_remote_url: "https://example.internal/original.git",
+      },
+    });
+    await post("/api/hooks/event", {
+      hook_type: "PreToolUse",
+      data: {
+        session_id: sessionId,
+        tool_name: "Read",
+        repo_remote_url: "https://example.internal/changed.git",
+      },
+    });
+    assert.equal(
+      stmts.getSession.get(sessionId).repo_remote_url,
+      "https://example.internal/original.git"
+    );
   });
 
   it("broadcasts local-hook repo identity only after it is persisted", async () => {

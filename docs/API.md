@@ -775,11 +775,11 @@ Upsert a pricing rule, keyed by `model_pattern`. The same call creates a new rul
 {
   "model_pattern": "claude-sonnet-5%",
   "display_name": "Claude Sonnet 5",
-  "input_per_mtok": 3,
-  "output_per_mtok": 15,
-  "cache_read_per_mtok": 0.3,
-  "cache_write_per_mtok": 3.75,
-  "cache_write_1h_per_mtok": 6,
+  "input_per_mtok": 2,
+  "output_per_mtok": 10,
+  "cache_read_per_mtok": 0.2,
+  "cache_write_per_mtok": 2.5,
+  "cache_write_1h_per_mtok": 4,
   "fast_input_per_mtok": 0,
   "fast_output_per_mtok": 0,
 
@@ -853,7 +853,7 @@ PUT    /api/pricing/gpt
 DELETE /api/pricing/gpt/:pattern
 ```
 
-These endpoints manage the separate GPT rate card used only for Codex sessions. Each row has four USD-per-million-token rates for each of three groups: `short_*` for standard requests at or below 272K input tokens, `long_*` for larger standard requests, and `fast_*` for Fast mode. The four rates are input, cached input, cache writes, and output. Every present rate must be a finite non-negative number. A published but unavailable tier is stored as an all-zero group and surfaced in cost responses as unpriced, rather than silently guessing a price.
+These endpoints manage the separate GPT rate card used only for Codex sessions. Each row has four USD-per-million-token rates for each of four groups: `short_*` for standard requests at or below 272K input tokens, `long_*` for larger standard requests, `fast_*` for short Fast requests, and `fast_long_*` for Fast requests above 272K. Older API clients that omit `fast_long_*` retain the existing values on update. The four rates are input, cached input, cache writes, and output. Every present rate must be a finite non-negative number. A published but unavailable tier is stored as an all-zero group and surfaced in cost responses as unpriced, rather than silently guessing a price.
 
 `POST /api/settings/reset-pricing` accepts an optional JSON body `{ "provider": "claude" }` or `{ "provider": "codex" }` to reset only that provider's table. Omitting the body preserves the CLI/MCP compatibility behavior and resets both tables. The response returns `provider`, `pricing`, and `gpt_pricing`.
 
@@ -872,7 +872,11 @@ These endpoints manage the separate GPT rate card used only for Codex sessions. 
   "fast_input_per_mtok": 4,
   "fast_cached_input_per_mtok": 0.4,
   "fast_cache_write_per_mtok": 5,
-  "fast_output_per_mtok": 24
+  "fast_output_per_mtok": 24,
+  "fast_long_input_per_mtok": 8,
+  "fast_long_cached_input_per_mtok": 0.8,
+  "fast_long_cache_write_per_mtok": 10,
+  "fast_long_output_per_mtok": 36
 }
 ```
 

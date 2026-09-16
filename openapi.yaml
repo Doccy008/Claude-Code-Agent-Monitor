@@ -399,6 +399,10 @@ components:
         cwd:
           type: string
           nullable: true
+        repo_remote_url:
+          type: string
+          nullable: true
+          description: Credential-free Git remote URL first observed by an authenticated collector. Consumers may canonicalize it to match a repository across machine-local working-directory paths.
         model:
           type: string
           nullable: true
@@ -431,6 +435,10 @@ components:
         cost:
           type: number
           nullable: true
+        has_token_usage:
+          type: boolean
+          nullable: true
+          description: True when durable token-usage buckets exist for this session. It is independent of cost, which may be zero for genuinely empty or unpriced usage.
         awaiting_input_since:
           type: string
           format: date-time
@@ -1344,7 +1352,7 @@ components:
         - model_pattern
         - display_name
         - updated_at
-      description: OpenAI/Codex token pricing. Standard requests use short rates at or below 272K input tokens and long rates above that; Fast requests use the explicit fast rate card.
+      description: OpenAI/Codex token pricing. Standard requests use short rates at or below 272K input tokens and long rates above that; Fast requests use fast_* short rates or fast_long_* long rates at the same boundary.
       properties:
         model_pattern:
           type: string
@@ -1367,6 +1375,14 @@ components:
         long_output_per_mtok:
           type: number
         fast_input_per_mtok:
+          type: number
+        fast_long_input_per_mtok:
+          type: number
+        fast_long_cached_input_per_mtok:
+          type: number
+        fast_long_cache_write_per_mtok:
+          type: number
+        fast_long_output_per_mtok:
           type: number
         fast_cached_input_per_mtok:
           type: number
@@ -1404,6 +1420,14 @@ components:
         long_output_per_mtok:
           type: number
         fast_input_per_mtok:
+          type: number
+        fast_long_input_per_mtok:
+          type: number
+        fast_long_cached_input_per_mtok:
+          type: number
+        fast_long_cache_write_per_mtok:
+          type: number
+        fast_long_output_per_mtok:
           type: number
         fast_cached_input_per_mtok:
           type: number
@@ -5940,6 +5964,9 @@ paths:
                   description: Defaults to 'Session <first 8 chars of session_id>' for a brand-new session.
                 cwd:
                   type: string
+                repo_remote_url:
+                  type: string
+                  description: Optional Git remote URL. Userinfo is removed, then the authenticated collector's first non-empty value is retained for cross-machine repository matching.
                 model:
                   type: string
                 tokens:

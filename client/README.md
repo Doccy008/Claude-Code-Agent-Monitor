@@ -1343,3 +1343,7 @@ The client is a production-ready React application with:
 - 🎨 **Maintainable** - Clear architecture, type-safe, well-documented
 
 For server documentation, see [server/README.md](../server/README.md).
+
+### GPT pricing editor
+
+Settings exposes four editable OpenAI rate groups: Standard short/long and Fast short/long, each with input, cached input, cache-write, and output prices in USD per million tokens. Both modes use the 272K request boundary. Unpublished tiers remain unpriced. Labels and pricing guidance are translated into all five supported languages.

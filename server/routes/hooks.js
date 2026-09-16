@@ -70,6 +70,9 @@ function sanitizeRepoRemoteUrl(value) {
       return parsed.toString();
     }
   } catch {
+    // Fail closed on malformed URLs: falling through would persist userinfo
+    // (for example a credential-bearing HTTPS URL with an invalid port).
+    if (remote.includes("://")) return null;
     // SCP-like Git syntax (for example git@host:org/repo.git) is not a URL.
   }
   return remote.replace(/^[^@/\s:]+@(?=[^@/\s:]+:)/, "").replace(/[?#].*$/, "");
