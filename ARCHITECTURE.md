@@ -919,6 +919,7 @@ erDiagram
         TEXT name "Human-readable label"
         TEXT status "active|completed|error|abandoned"
         TEXT cwd "Working directory"
+        TEXT repo_remote_url "First sanitized collector remote; nullable"
         TEXT model "Claude model ID"
         TEXT started_at "ISO 8601"
         TEXT ended_at "ISO 8601 or NULL"

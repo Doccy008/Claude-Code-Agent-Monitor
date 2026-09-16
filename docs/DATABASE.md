@@ -207,6 +207,7 @@ CREATE TABLE sessions (
 | `name` | TEXT | YES | Human-readable label. Synced from the transcript title by `routes/hooks.js` (and the 15 s watchdog) on every event: the `custom-title` line (`/rename`, `claude -n`, picker `Ctrl+R`) always wins, otherwise the auto-generated `ai-title` fills a placeholder/auto name, otherwise the session's first user prompt (60-char label) fills it. Falls back to `Session <id8>` |
 | `status` | TEXT | NO | `active`, `completed`, `error`, or `abandoned` (CHECK-constrained). Besides the `SessionEnd` hook, the 15 s watchdog's **liveness reap** also lands `active` → `completed` when no running matching local `claude` or `codex` process has the session's `cwd` (a `SessionEnd` lost while the dashboard was down); gated by `DASHBOARD_LIVENESS_IDLE_SECONDS`, disabled via `DASHBOARD_LIVENESS_PROBE=0`. Sessions with a non-`local` `source` (Remote Data Sources) are always exempt from the local process reap and transcript watchdog. Each remote provider has independent health: sessions stay out of stale sweeps only while their own Claude or Codex mirror is healthy. If that provider reports `error`/`unavailable`, or remains `syncing` longer than `DASHBOARD_STALE_MINUTES`, an active session older than that same window falls back to the ordinary stale sweep (`abandoned`, agents completed) until a fresh mirror can reactivate it |
 | `cwd` | TEXT | YES | Working directory the CLI was launched from |
+| `repo_remote_url` | TEXT | YES | First non-empty sanitized collector remote; later hooks/batches cannot overwrite it. Not discovered automatically from `cwd`. |
 | `model` | TEXT | YES | Claude model ID (e.g. `claude-opus-4-7`) |
 | `provider` | TEXT | NO | Product that produced the session: `claude` (default) or `codex`. Powers the composable `providers` API scope and lets shared token buckets use the correct rate card. |
 | `started_at` | TEXT | NO | ISO 8601 timestamp |
@@ -468,13 +469,13 @@ CREATE TABLE gpt_model_pricing (
     long_cache_write_per_mtok REAL NOT NULL DEFAULT 0,
     long_output_per_mtok REAL NOT NULL DEFAULT 0,
     fast_input_per_mtok REAL NOT NULL DEFAULT 0,
+    fast_cached_input_per_mtok REAL NOT NULL DEFAULT 0,
+    fast_cache_write_per_mtok REAL NOT NULL DEFAULT 0,
+    fast_output_per_mtok REAL NOT NULL DEFAULT 0,
     fast_long_input_per_mtok REAL NOT NULL DEFAULT 0,
     fast_long_cached_input_per_mtok REAL NOT NULL DEFAULT 0,
     fast_long_cache_write_per_mtok REAL NOT NULL DEFAULT 0,
     fast_long_output_per_mtok REAL NOT NULL DEFAULT 0,
-    fast_cached_input_per_mtok REAL NOT NULL DEFAULT 0,
-    fast_cache_write_per_mtok REAL NOT NULL DEFAULT 0,
-    fast_output_per_mtok REAL NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
 );
 ```
