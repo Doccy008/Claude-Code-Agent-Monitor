@@ -604,8 +604,6 @@ try {
     "UPDATE model_pricing SET fast_input_per_mtok = ?, fast_output_per_mtok = ? WHERE model_pattern = ? AND fast_input_per_mtok = 0"
   );
   setFast.run(10, 50, "claude-opus-4-8%");
-  setFast.run(30, 150, "claude-opus-4-7%");
-  setFast.run(30, 150, "claude-opus-4-6%");
 }
 
 // Migrate: add time-limited introductory-rate columns to model_pricing.
@@ -628,7 +626,8 @@ try {
   db.prepare("ALTER TABLE model_pricing ADD COLUMN intro_until TEXT").run();
 }
 
-// Default model pricing — shared by initial seed + startup top-up + reset endpoint
+// Standard rates verified against https://platform.claude.com/docs/en/about-claude/pricing
+// on 2026-09-15. Default model pricing is shared by startup and reset.
 // Columns: pattern, display_name, input, output, cache_read (hits & refreshes),
 //          cache_write (5m ephemeral writes), cache_write_1h (1h ephemeral writes),
 //          fast_input, fast_output (fast-mode premium; 0 = model has no fast pricing)
@@ -645,7 +644,7 @@ const DEFAULT_PRICING = [
   ["claude-mythos-5-1%", "Claude Mythos 5.1", 10, 50, 0.25, 12.5, 20, 0, 0],
   ["claude-fable-5%", "Claude Fable 5", 10, 50, 1, 12.5, 20, 0, 0],
   ["claude-mythos-5%", "Claude Mythos 5", 10, 50, 1, 12.5, 20, 0, 0],
-  // Opus family (fast mode available on 4.6 / 4.7 / 4.8, and now 5)
+  // Opus family (Fast mode is available only on Opus 5 and 4.8).
   // claude-opus-5: $5/$25 input/output, $0.50 cache read, $6.25 5m cache write,
   // $10 1h cache write — matching Anthropic's published rate card and identical
   // to the 4.8/4.7/4.6/4.5 rows that share the same $5 input tier. Fast mode is
@@ -655,8 +654,8 @@ const DEFAULT_PRICING = [
   // other model here uses, not a separate pricing tier.
   ["claude-opus-5%", "Claude Opus 5", 5, 25, 0.5, 6.25, 10, 10, 50],
   ["claude-opus-4-8%", "Claude Opus 4.8", 5, 25, 0.5, 6.25, 10, 10, 50],
-  ["claude-opus-4-7%", "Claude Opus 4.7", 5, 25, 0.5, 6.25, 10, 30, 150],
-  ["claude-opus-4-6%", "Claude Opus 4.6", 5, 25, 0.5, 6.25, 10, 30, 150],
+  ["claude-opus-4-7%", "Claude Opus 4.7", 5, 25, 0.5, 6.25, 10, 0, 0],
+  ["claude-opus-4-6%", "Claude Opus 4.6", 5, 25, 0.5, 6.25, 10, 0, 0],
   ["claude-opus-4-5%", "Claude Opus 4.5", 5, 25, 0.5, 6.25, 10, 0, 0],
   ["claude-opus-4-1%", "Claude Opus 4.1", 15, 75, 1.5, 18.75, 30, 0, 0],
   ["claude-opus-4-2%", "Claude Opus 4", 15, 75, 1.5, 18.75, 30, 0, 0],
@@ -680,6 +679,8 @@ const DEFAULT_PRICING = [
   ["claude-3-opus%", "Claude Opus 3", 15, 75, 1.5, 18.75, 30, 0, 0],
 ];
 
+// OpenAI rates: https://developers.openai.com/api/docs/pricing (2026-09-15).
+// Sol uses the currently published promotional rates; do not guess a future cutoff.
 // OpenAI pricing supplied for Codex support. Only models for which the supplied
 // rate card publishes a long-context column receive long rates; unsupported
 // combinations remain zero and surface as explicitly unpriced rather than
@@ -692,7 +693,11 @@ const gptRate = (pattern, name, short, fast = [0, 0, 0, 0], long = [0, 0, 0, 0])
   ...fast,
 ];
 const DEFAULT_GPT_PRICING = [
-  gptRate("gpt-5.6-sol%", "GPT-5.6 Sol", [5, 0.5, 6.25, 30], [10, 1, 12.5, 60], [10, 1, 12.5, 45]),
+  // GPT-6 Astra has a distinct API rate card. Keep it ahead of the broader
+  // gpt-5 patterns so Codex rollout records are priced rather than reported
+  // as unpriced usage.
+  gptRate("gpt-6-astra%", "GPT-6 Astra", [10, 1, 12.5, 50], [20, 2, 25, 100], [20, 2, 25, 75]),
+  gptRate("gpt-5.6-sol%", "GPT-5.6 Sol", [4, 0.4, 5, 20], [8, 0.8, 10, 40], [8, 0.8, 10, 30]),
   gptRate("gpt-5.6-terra%", "GPT-5.6 Terra", [2, 0.2, 2.5, 12], [4, 0.4, 5, 24], [4, 0.4, 5, 18]),
   gptRate(
     "gpt-5.6-luna%",
@@ -736,6 +741,33 @@ const DEFAULT_GPT_PRICING = [
   gptRate("babbage-002%", "Babbage-002", [0.4, 0, 0, 0.4]),
 ];
 
+// Fast requests have their own short AND long rate cards. Explicit published
+// values avoid applying a guessed multiplier to unsupported model/tier pairs.
+const GPT_FAST_LONG_RATES = {
+  "gpt-6-astra%": [40, 4, 50, 150],
+  "gpt-5.6-sol%": [16, 1.6, 20, 60],
+  "gpt-5.6-terra%": [8, 0.8, 10, 36],
+  "gpt-5.6-luna%": [0.8, 0.08, 1, 3.6],
+};
+const GPT_FAST_LONG_FIELDS = [
+  "fast_long_input_per_mtok",
+  "fast_long_cached_input_per_mtok",
+  "fast_long_cache_write_per_mtok",
+  "fast_long_output_per_mtok",
+];
+let addedGptFastLongColumns = false;
+for (const field of GPT_FAST_LONG_FIELDS) {
+  if (
+    !db
+      .prepare("PRAGMA table_info(gpt_model_pricing)")
+      .all()
+      .some((column) => column.name === field)
+  ) {
+    db.exec(`ALTER TABLE gpt_model_pricing ADD COLUMN ${field} REAL NOT NULL DEFAULT 0`);
+    addedGptFastLongColumns = true;
+  }
+}
+
 function seedGptPricing(dbHandle = db) {
   const insert = dbHandle.prepare(`
     INSERT OR IGNORE INTO gpt_model_pricing (
@@ -746,7 +778,13 @@ function seedGptPricing(dbHandle = db) {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const seed = dbHandle.transaction((rows) => {
-    for (const row of rows) insert.run(...row);
+    const setLong = dbHandle.prepare(`UPDATE gpt_model_pricing SET
+      ${GPT_FAST_LONG_FIELDS.map((field) => `${field} = ?`).join(", ")} WHERE model_pattern = ?`);
+    for (const row of rows) {
+      if (insert.run(...row).changes) {
+        setLong.run(...(GPT_FAST_LONG_RATES[row[0]] || [0, 0, 0, 0]), row[0]);
+      }
+    }
   });
   seed(DEFAULT_GPT_PRICING);
 }
@@ -774,6 +812,56 @@ function repairLegacyGptPricing(dbHandle = db) {
   repair.run("gpt-5.4-nano%", 0.4, 0.04, 0, 1.875);
 }
 repairLegacyGptPricing();
+
+// Correct only exact shipped rate groups. Custom prices survive upgrades.
+// Fast-long backfill runs only when its columns are first added; an operator
+// can subsequently set them to zero without a later restart undoing that edit.
+function correctPublishedPricing(dbHandle = db, backfillFastLong = false) {
+  const fields = ["short", "long", "fast"].flatMap((prefix) =>
+    ["input", "cached_input", "cache_write", "output"].map((kind) => `${prefix}_${kind}_per_mtok`)
+  );
+  const stale = [
+    gptRate("gpt-6-astra%", "GPT-6 Astra", [10, 1, 12.5, 50], [20, 2, 25, 100]),
+    gptRate(
+      "gpt-5.6-sol%",
+      "GPT-5.6 Sol",
+      [5, 0.5, 6.25, 30],
+      [10, 1, 12.5, 60],
+      [10, 1, 12.5, 45]
+    ),
+  ];
+  dbHandle.transaction(() => {
+    const update = dbHandle.prepare(`UPDATE gpt_model_pricing SET
+      ${fields.map((field) => `${field} = ?`).join(", ")}
+      WHERE model_pattern = ? AND ${fields.map((field) => `${field} = ?`).join(" AND ")}`);
+    for (const old of stale) {
+      const current = DEFAULT_GPT_PRICING.find((row) => row[0] === old[0]);
+      update.run(...current.slice(2), old[0], ...old.slice(2));
+    }
+    if (backfillFastLong) {
+      const updateLong = dbHandle.prepare(`UPDATE gpt_model_pricing SET
+        ${GPT_FAST_LONG_FIELDS.map((field) => `${field} = ?`).join(", ")} WHERE model_pattern = ?`);
+      for (const row of dbHandle.prepare("SELECT * FROM gpt_model_pricing").all()) {
+        const defaults = DEFAULT_GPT_PRICING.find((entry) => entry[0] === row.model_pattern);
+        const isDefault =
+          defaults && fields.every((field, index) => row[field] === defaults[index + 2]);
+        // The old custom Fast rate applied at every context size. Copy it into
+        // the new band on upgrade so custom pricing retains that behavior.
+        const rates = isDefault
+          ? GPT_FAST_LONG_RATES[row.model_pattern] || [0, 0, 0, 0]
+          : fields.slice(8).map((field) => row[field]);
+        updateLong.run(...rates, row.model_pattern);
+      }
+    }
+    const removeFast =
+      dbHandle.prepare(`UPDATE model_pricing SET fast_input_per_mtok = 0, fast_output_per_mtok = 0
+      WHERE model_pattern = ? AND input_per_mtok = 5 AND output_per_mtok = 25
+      AND cache_read_per_mtok = 0.5 AND cache_write_per_mtok = 6.25 AND cache_write_1h_per_mtok = 10
+      AND fast_input_per_mtok = 30 AND fast_output_per_mtok = 150`);
+    for (const pattern of ["claude-opus-4-6%", "claude-opus-4-7%"]) removeFast.run(pattern);
+  })();
+}
+correctPublishedPricing(db, addedGptFastLongColumns);
 
 // Top-up: insert any default pattern that isn't already present. Preserves
 // user edits to existing rows — we only add what's missing, never overwrite.
@@ -1004,6 +1092,15 @@ try {
   db.prepare("SELECT card_prompt_preview FROM sessions LIMIT 1").get();
 } catch {
   db.prepare("ALTER TABLE sessions ADD COLUMN card_prompt_preview TEXT").run();
+}
+
+// A session's origin remote is an optional, opaque Git URL supplied by the
+// authenticated collector. Consumers can canonicalize it in their own trust
+// domain to map the same repository across different machine-local cwd paths.
+try {
+  db.prepare("SELECT repo_remote_url FROM sessions LIMIT 1").get();
+} catch {
+  db.prepare("ALTER TABLE sessions ADD COLUMN repo_remote_url TEXT").run();
 }
 
 // Dashboard run records predate provider-aware launching. Keep existing rows
@@ -1504,6 +1601,11 @@ const stmts = {
   setSessionTranscriptPath: db.prepare(
     "UPDATE sessions SET transcript_path = ? WHERE id = ? AND (transcript_path IS NULL OR transcript_path = '')"
   ),
+  // First observed remote wins. A later hook must not silently rewrite the
+  // repository identity that a client already used for cross-machine mapping.
+  setSessionRepoRemoteUrl: db.prepare(
+    "UPDATE sessions SET repo_remote_url = ? WHERE id = ? AND (repo_remote_url IS NULL OR repo_remote_url = '')"
+  ),
   // Used only when an imported Codex snapshot is promoted to its matching live
   // rollout. The byte cursors move with it in codex-ingest before this pointer
   // changes, so a later watcher pass continues from the accounted offset.
@@ -1964,6 +2066,8 @@ const stmts = {
       fast_output_per_mtok = excluded.fast_output_per_mtok,
       updated_at = excluded.updated_at
   `),
+  setGptFastLongPricing: db.prepare(`UPDATE gpt_model_pricing SET
+    ${GPT_FAST_LONG_FIELDS.map((field) => `${field} = ?`).join(", ")} WHERE model_pattern = ?`),
   deleteGptPricing: db.prepare("DELETE FROM gpt_model_pricing WHERE model_pattern = ?"),
   toolUsageCounts: db.prepare(`
     SELECT tool_name, COUNT(*) as count
@@ -2213,4 +2317,6 @@ module.exports = {
   correctSonnet5StandardRate,
   seedGptPricing,
   repairLegacyGptPricing,
+  correctPublishedPricing,
+  GPT_FAST_LONG_FIELDS,
 };

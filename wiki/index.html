@@ -1187,8 +1187,8 @@
                     and agent cards. Compaction-aware accounting preserves usage across context
                     compression, imports reuse the same pricing table, and rate edits recalculate
                     stored sessions. Subagent cards show only their own transcript cost while main
-                    agents retain session totals. GPT pricing distinguishes standard, long-context,
-                    and Fast modes, leaving unpublished tiers explicitly unpriced.
+                    agents retain session totals. GPT pricing distinguishes short and long context
+                    for both Standard and Fast modes, leaving unpublished tiers explicitly unpriced.
                   </p>
                 </div>
                 <div class="feature-card">
@@ -7106,7 +7106,7 @@ npm run install-hooks</code></pre>
     <!-- Body-content translations — must load before script.js so the
          i18n engine sees window.__WIKI_CONTENT_I18N. Both are deferred, so they
          run in document order. -->
-    <script src="i18n-content.js?v=94" defer></script>
+    <script src="i18n-content.js?v=95" defer></script>
     <script src="script.js?v=57" defer></script>
     <script>
       (function () {

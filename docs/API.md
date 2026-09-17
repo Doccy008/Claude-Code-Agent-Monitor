@@ -122,7 +122,21 @@ https://dashboard.example.com
 GET /api/sessions
 ```
 
-Returns all sessions, ordered by most recent activity. Each row may include an optional
+Returns all sessions, ordered by most recent activity. Each list row includes the boolean
+`has_token_usage`: `true` means at least one durable `token_usage` bucket exists, even if every
+counter is zero or the model is unpriced. It does not indicate whether all usage is priced.
+Rows with no buckets, including transient Codex process-overlay rows, report `false`.
+Do not infer coverage from `cost`, which can be zero in either case. This flag is computed
+for the list response; it is not a stored session column or a guaranteed field on detail or
+WebSocket responses.
+
+`repo_remote_url` is optional collector-supplied metadata, not an automatically discovered Git
+remote. The first non-empty sanitized value wins, including when supplied after session creation;
+later hooks or batches cannot replace it. URL/SCP userinfo, query strings, and fragments are
+removed, and malformed URL-style values are discarded before session or hook-event storage.
+For example, `git@example.internal:team/project.git` becomes `example.internal:team/project.git`.
+Consumers may canonicalize the retained value to match a repository across machine-local `cwd`
+paths; it is an identity hint, not a clone credential. Each row may include an optional
 `prompt_preview` for compact cards: the two newest distinct real human prompts, oldest to
 newest and newline-separated. Claude Code persists this bounded summary from the local JSONL
 cache during hooks, imports, and watchdog sweeps; Codex derives it from durable
@@ -164,6 +178,8 @@ curl "http://localhost:4820/api/sessions?limit=10&status=active&include_task_pro
       "model": "claude-sonnet-4",
       "status": "active",
       "cost": 1.23,
+      "has_token_usage": true,
+      "repo_remote_url": "ssh://example.internal:2222/team/project.git",
       "agent_count": 3,
       "started_at": "2024-03-18T12:00:00Z",
       "updated_at": "2024-03-18T14:30:00Z",
@@ -224,7 +240,9 @@ classDiagram
         +string name
         +string status "active|completed|error|abandoned"
         +string cwd
+        +string repo_remote_url "nullable opaque repository identity"
         +string model
+        +boolean has_token_usage "durable token buckets exist"
         +string prompt_preview "nullable card context"
         +string started_at
         +string ended_at
@@ -767,11 +785,11 @@ Upsert a pricing rule, keyed by `model_pattern`. The same call creates a new rul
 {
   "model_pattern": "claude-sonnet-5%",
   "display_name": "Claude Sonnet 5",
-  "input_per_mtok": 3,
-  "output_per_mtok": 15,
-  "cache_read_per_mtok": 0.3,
-  "cache_write_per_mtok": 3.75,
-  "cache_write_1h_per_mtok": 6,
+  "input_per_mtok": 2,
+  "output_per_mtok": 10,
+  "cache_read_per_mtok": 0.2,
+  "cache_write_per_mtok": 2.5,
+  "cache_write_1h_per_mtok": 4,
   "fast_input_per_mtok": 0,
   "fast_output_per_mtok": 0,
 
@@ -845,7 +863,16 @@ PUT    /api/pricing/gpt
 DELETE /api/pricing/gpt/:pattern
 ```
 
-These endpoints manage the separate GPT rate card used only for Codex sessions. Each row has four USD-per-million-token rates for each of three groups: `short_*` for standard requests at or below 272K input tokens, `long_*` for larger standard requests, and `fast_*` for Fast mode. The four rates are input, cached input, cache writes, and output. Every present rate must be a finite non-negative number. A published but unavailable tier is stored as an all-zero group and surfaced in cost responses as unpriced, rather than silently guessing a price.
+These endpoints manage the separate GPT rate card used only for Codex sessions. Each row has four USD-per-million-token rates for each of four groups: `short_*` for standard requests at or below 272K input tokens, `long_*` for larger standard requests, `fast_*` for short Fast requests, and `fast_long_*` for Fast requests above 272K. Older API clients that omit `fast_long_*` retain the existing values on update. The four rates are input, cached input, cache writes, and output. Every present rate must be a finite non-negative number. A published but unavailable tier is stored as an all-zero group and surfaced in cost responses as unpriced, rather than silently guessing a price.
+
+**Upgrade behavior:** startup corrects only exact obsolete default Astra/Sol rates. When the
+Fast long columns are first added, untouched defaults receive the published Astra and GPT-5.6
+Fast long rates; customized rules inherit their existing Fast rates in the new band. Subsequent
+restarts preserve edits, including an explicit zero rate. Cost estimates are calculated on read,
+so corrected defaults also reprice existing sessions. No token re-import is required. Sol uses
+the currently configured rate for historical estimates too; the dashboard neither fetches live
+prices nor schedules an assumed promotional price increase. Reset Defaults deliberately replaces
+the selected provider's custom prices.
 
 `POST /api/settings/reset-pricing` accepts an optional JSON body `{ "provider": "claude" }` or `{ "provider": "codex" }` to reset only that provider's table. Omitting the body preserves the CLI/MCP compatibility behavior and resets both tables. The response returns `provider`, `pricing`, and `gpt_pricing`.
 
@@ -864,7 +891,11 @@ These endpoints manage the separate GPT rate card used only for Codex sessions. 
   "fast_input_per_mtok": 4,
   "fast_cached_input_per_mtok": 0.4,
   "fast_cache_write_per_mtok": 5,
-  "fast_output_per_mtok": 24
+  "fast_output_per_mtok": 24,
+  "fast_long_input_per_mtok": 8,
+  "fast_long_cached_input_per_mtok": 0.8,
+  "fast_long_cache_write_per_mtok": 10,
+  "fast_long_output_per_mtok": 36
 }
 ```
 
@@ -1185,6 +1216,7 @@ logs.
   "provider": "claude",
   "session_name": "optional display name (defaults to Session <first 8 chars of id>)",
   "cwd": "optional working directory",
+  "repo_remote_url": "optional opaque Git remote URL",
   "model": "optional model id",
   "tokens": [
     {
@@ -1218,6 +1250,7 @@ logs.
 | `provider` | string | Yes | `claude` or `codex` |
 | `session_name` | string | No | Display name; defaults to `Session <id8>` |
 | `cwd` | string | No | Working directory on the pushing machine |
+| `repo_remote_url` | string | No | Optional collector Git remote; URL/SCP userinfo, query strings, and fragments are removed, malformed URL-style values are discarded, and the first non-empty sanitized value wins |
 | `model` | string | No | Model id for the session |
 | `tokens` | array | No | Each entry is that bucket's **full current total** (like a transcript re-parse), **not** a delta |
 | `tool_events` | array | No | Tool calls, stored as `RemoteToolEvent` events |

@@ -224,6 +224,17 @@ a `session_id` already owned by a local or SSH-pulled session is refused per ite
 path, partial failures stay non-fatal — the response is `200` with per-item
 `errors[]`.
 
+Collectors may optionally supply `repo_remote_url`: inside `data` for
+`POST /api/hooks/event`, or at the top level for `POST /api/hooks/ingest-batch`.
+The server does not run Git to discover this field. The first non-empty sanitized
+remote wins, including when a later event supplies it for an existing session.
+URL/SCP userinfo, query strings, and fragments are removed; malformed URL-style
+values are discarded before persistence. Local hook envelopes stored in
+`events.data` use the sanitized value as well. For example,
+`git@example.internal:team/project.git` is retained as
+`example.internal:team/project.git`. Consumers can use this optional identity
+hint to match repositories across different working-directory paths.
+
 See [API.md → Remote Push Ingestion](API.md#remote-push-ingestion) for the full
 payload shape and [`server/README.md`](../server/README.md) for the route's
 implementation notes.
