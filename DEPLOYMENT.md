@@ -300,7 +300,7 @@ The active `.github/workflows/ci.yml`:
 - attaches BuildKit SBOM and SLSA provenance
 - keyless-signs image digests with Cosign and GitHub OIDC
 - publishes releases only after the signed image job succeeds
-- uploads desktop assets individually into a draft, retries failed uploads up to three times, and verifies asset sizes before publication
+- uploads desktop assets individually into a draft, attempts each upload up to three times (one initial attempt and two retries), and verifies asset sizes before publication
 - resumes unfinished drafts only for the same commit; already published versions remain unchanged
 
 All deployment-related actions are pinned by commit SHA.

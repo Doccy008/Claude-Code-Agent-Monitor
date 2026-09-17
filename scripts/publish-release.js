@@ -5,6 +5,20 @@
 const fs = require("node:fs");
 const { execFileSync } = require("node:child_process");
 
+/**
+ * Creates or resumes a same-commit draft and publishes it after verifying all
+ * four desktop artifacts. Published releases are left unchanged. Uploads get
+ * three total attempts; any lookup, upload, or verification failure throws.
+ *
+ * @param {object} options - Release identity and injected I/O dependencies.
+ * @param {string} options.tag - Stable release tag, such as v2.2.1.
+ * @param {string} options.sha - Full commit SHA that produced the artifacts.
+ * @param {string} options.repo - GitHub owner/repository.
+ * @param {function(string[]): string} options.run - Runs gh and returns stdout; throws on failure.
+ * @param {function(number): void} options.sleep - Waits for the given milliseconds between retries.
+ * @param {function(string): number} options.size - Reads a local artifact's size in bytes.
+ * @returns {void}
+ */
 function publishRelease({ tag, sha, repo, run, sleep, size }) {
   if (!/^v\d+\.\d+\.\d+$/.test(tag) || !/^[a-f0-9]{40}$/.test(sha)) {
     throw new Error("Expected a release version tag and full commit SHA");

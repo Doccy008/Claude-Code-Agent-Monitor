@@ -6,6 +6,12 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { publishRelease } = require("../../scripts/publish-release");
 
+/**
+ * Builds an isolated publisher fixture with recorded gh calls and simulated
+ * releases, upload failures, and asset metadata; no network or disk I/O occurs.
+ * @param {object} [options] - Existing releases and injected failure scenarios.
+ * @returns {{calls: string[][], options: object}} Recorded calls and publisher dependencies.
+ */
 function fixture({ existing = [], failUploads = 0, badAsset = false, listError = false } = {}) {
   const calls = [];
   const assets = [];
