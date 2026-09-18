@@ -593,6 +593,18 @@ it. Ownership is still decided once, at row creation, by an authenticated
 source: an existing local session is never relabelled, and a hook without the
 token (or with a wrong one) keeps today's local behaviour.
 
+If `DASHBOARD_HOOK_TOKEN` is also set, `hookGuard` authenticates every
+`/api/hooks/*` request first, so a remote hook needs **both** credentials in
+separate headers:
+
+```
+X-CCAM-Hook-Token: <DASHBOARD_HOOK_TOKEN>
+Authorization: Bearer <REMOTE_PUSH_TOKEN>
+```
+
+Sending only the remote-push bearer then gets `401` from `hookGuard` — the
+hook-auth boundary is unchanged by remote-origin ownership.
+
 Response (`200`, even when individual items were skipped/rejected — see
 `errors[]`/`skipped` for partial-failure detail):
 

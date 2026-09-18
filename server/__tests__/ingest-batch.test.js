@@ -718,6 +718,41 @@ describe("POST /api/hooks/event — remote-origin ownership", () => {
     assert.equal(sessionRow(id).source, "local");
   });
 
+  it("with DASHBOARD_HOOK_TOKEN also set, hookGuard still gates first: both credentials are needed", async () => {
+    const HOOK_TOKEN = "distinct-local-hook-token-abc";
+    process.env.DASHBOARD_HOOK_TOKEN = HOOK_TOKEN;
+    try {
+      async function postRaw(sessionId, headers) {
+        const response = await fetch(`${BASE}/api/hooks/event`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: JSON.stringify({ hook_type: "SessionStart", data: { session_id: sessionId } }),
+        });
+        return response.status;
+      }
+
+      // Remote-push bearer alone: rejected by hookGuard before ownership logic.
+      const onlyRemote = newSessionId("two-token-only-remote");
+      assert.equal(await postRaw(onlyRemote, { authorization: `Bearer ${TOKEN}` }), 401);
+      assert.equal(sessionRow(onlyRemote), undefined);
+
+      // Both credentials in separate headers: accepted and remote_push-owned.
+      const both = newSessionId("two-token-both");
+      assert.equal(
+        await postRaw(both, { "x-ccam-hook-token": HOOK_TOKEN, authorization: `Bearer ${TOKEN}` }),
+        200
+      );
+      assert.equal(sessionRow(both).source, "remote_push");
+
+      // Hook credential alone: accepted as a plain local hook.
+      const onlyHook = newSessionId("two-token-only-hook");
+      assert.equal(await postRaw(onlyHook, { "x-ccam-hook-token": HOOK_TOKEN }), 200);
+      assert.equal(sessionRow(onlyHook).source, "local");
+    } finally {
+      delete process.env.DASHBOARD_HOOK_TOKEN;
+    }
+  });
+
   it("records a supported non-default provider at birth and ignores an unsupported one", async () => {
     const codex = newSessionId("remote-codex");
     assert.equal(await postEvent({ session_id: codex, provider: "codex" }, { token: TOKEN }), 200);
