@@ -744,6 +744,14 @@ describe("POST /api/hooks/event — remote-origin ownership", () => {
       );
       assert.equal(sessionRow(both).source, "remote_push");
 
+      // X-Dashboard-Token works in place of the bearer for the remote token.
+      const viaHeader = newSessionId("two-token-x-dashboard");
+      assert.equal(
+        await postRaw(viaHeader, { "x-ccam-hook-token": HOOK_TOKEN, "x-dashboard-token": TOKEN }),
+        200
+      );
+      assert.equal(sessionRow(viaHeader).source, "remote_push");
+
       // Hook credential alone: accepted as a plain local hook.
       const onlyHook = newSessionId("two-token-only-hook");
       assert.equal(await postRaw(onlyHook, { "x-ccam-hook-token": HOOK_TOKEN }), 200);

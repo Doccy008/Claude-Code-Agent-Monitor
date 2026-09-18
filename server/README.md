@@ -597,13 +597,16 @@ If `DASHBOARD_HOOK_TOKEN` is also set, `hookGuard` authenticates every
 `/api/hooks/*` request first, so a remote hook needs **both** credentials in
 separate headers:
 
-```
+```http
 X-CCAM-Hook-Token: <DASHBOARD_HOOK_TOKEN>
 Authorization: Bearer <REMOTE_PUSH_TOKEN>
 ```
 
-Sending only the remote-push bearer then gets `401` from `hookGuard` — the
-hook-auth boundary is unchanged by remote-origin ownership.
+`X-Dashboard-Token: <REMOTE_PUSH_TOKEN>` works in place of the
+`Authorization: Bearer` header — `hookGuard` reads `X-CCAM-Hook-Token` first,
+so the two credentials never collide. Sending only the remote-push token then
+gets `401` from `hookGuard` — the hook-auth boundary is unchanged by
+remote-origin ownership.
 
 Response (`200`, even when individual items were skipped/rejected — see
 `errors[]`/`skipped` for partial-failure detail):
