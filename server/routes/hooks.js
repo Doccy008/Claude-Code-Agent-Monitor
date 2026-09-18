@@ -58,6 +58,9 @@ const BLOCKING_NOTIFICATION_TYPES = new Set([
   "elicitation_dialog",
   "elicitation_url_dialog",
   "agent_needs_input",
+  // Auto-resume found the usage limit still in effect and waits for Enter
+  // instead of continuing (hooks reference) -- the user must act.
+  "quota_auto_resume_stale",
 ]);
 const NON_BLOCKING_NOTIFICATION_TYPES = new Set([
   "idle_prompt",
@@ -66,7 +69,6 @@ const NON_BLOCKING_NOTIFICATION_TYPES = new Set([
   "elicitation_response",
   "agent_completed",
   "quota_auto_resume_fired",
-  "quota_auto_resume_stale",
   "quota_auto_resume_disabled",
 ]);
 
@@ -845,17 +847,20 @@ const processEvent = db.transaction((hookType, data) => {
     case "Notification": {
       const msg = data.message || "Notification received";
       // Tag compaction-related notifications so they show as Compaction events.
-      // The label is independent of blocking state: a structured blocking type
+      // The label is independent of blocking state: a RECOGNIZED blocking type
       // (e.g. a permission_prompt whose tool name happens to contain
-      // "compress") must still raise Waiting. Text-only notifications keep the
-      // previous precedence -- a compaction-looking message is never blocking.
+      // "compress") must still raise Waiting. Everything else -- no type, an
+      // unknown future type, an empty string -- keeps the legacy precedence:
+      // a compaction-looking message is never blocking.
       const isCompaction = /compact|compress|context.*(reduc|truncat|summar)/i.test(msg);
-      const hasStructuredType = typeof data.notification_type === "string";
+      const recognizedBlockingType =
+        typeof data.notification_type === "string" &&
+        BLOCKING_NOTIFICATION_TYPES.has(data.notification_type);
       if (isCompaction) {
         eventType = "Compaction";
       }
       summary = msg;
-      if ((!isCompaction || hasStructuredType) && isBlockingNotification(data, msg)) {
+      if ((!isCompaction || recognizedBlockingType) && isBlockingNotification(data, msg)) {
         // Claude Code is blocked waiting for the user (permission prompt or
         // explicit "waiting for input" notice). Stamp session + main agent
         // so the dashboard can surface a yellow "Waiting" badge until the

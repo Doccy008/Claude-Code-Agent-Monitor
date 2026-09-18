@@ -1166,6 +1166,34 @@ describe("Hook Event Processing", () => {
     assert.equal(sessRes.body.session.awaiting_reason, "notification");
   });
 
+  it("should flag waiting for quota_auto_resume_stale (it waits for Enter)", async () => {
+    await post("/api/hooks/event", {
+      hook_type: "Notification",
+      data: {
+        session_id: "hook-sess-quota-stale",
+        notification_type: "quota_auto_resume_stale",
+        message: "Claude is waiting for your input. Press Enter to resume.",
+      },
+    });
+    const sessRes = await fetch("/api/sessions/hook-sess-quota-stale");
+    assert.ok(sessRes.body.session.awaiting_input_since);
+    assert.equal(sessRes.body.session.awaiting_reason, "notification");
+  });
+
+  it("should keep the compaction exclusion for an unknown or empty notification_type", async () => {
+    for (const [sid, type] of [
+      ["hook-sess-compact-future", "future_type"],
+      ["hook-sess-compact-empty", ""],
+      ["hook-sess-compact-none", undefined],
+    ]) {
+      const data = { session_id: sid, message: "Context compression is waiting for your input" };
+      if (type !== undefined) data.notification_type = type;
+      await post("/api/hooks/event", { hook_type: "Notification", data });
+      const sessRes = await fetch(`/api/sessions/${sid}`);
+      assert.notEqual(sessRes.body.session.awaiting_reason, "notification", `type=${type}`);
+    }
+  });
+
   it("should fall back to the message text for an unknown notification_type", async () => {
     await post("/api/hooks/event", {
       hook_type: "SessionStart",
