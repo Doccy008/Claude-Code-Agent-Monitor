@@ -2192,6 +2192,8 @@ function createOpenApiSpec() {
           tags: ["Hooks"],
           summary: "Ingest Claude Code hook event",
           operationId: "ingestHookEvent",
+          description:
+            "Optional remote-origin proof: a hook forwarded from another machine may send REMOTE_PUSH_TOKEN as `Authorization: Bearer` or `X-Dashboard-Token`. When it matches, a session this event CREATES is owned by `remote_push` (optionally tagged with a supported `data.provider`), so the same collector's POST /api/hooks/ingest-batch can add tokens and tool events to it. A missing or non-matching token keeps the default local behaviour; existing sessions are never relabelled.",
           requestBody: {
             required: true,
             content: {

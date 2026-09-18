@@ -648,3 +648,84 @@ describe("POST /api/hooks/ingest-batch", () => {
     assert.ok(stmts.getAgent.get(`${sessionId}-main`), "the main agent row was recreated");
   });
 });
+
+describe("POST /api/hooks/event — remote-origin ownership", () => {
+  async function postEvent(data, { token, hookType = "SessionStart" } = {}) {
+    const headers = { "content-type": "application/json" };
+    if (token !== undefined) headers.authorization = `Bearer ${token}`;
+    const response = await fetch(`${BASE}/api/hooks/event`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ hook_type: hookType, data }),
+    });
+    return response.status;
+  }
+
+  function sessionRow(id) {
+    return db.prepare("SELECT source, provider FROM sessions WHERE id = ?").get(id);
+  }
+
+  it("births a remote_push session when the hook proves REMOTE_PUSH_TOKEN, so ingest-batch can enrich it", async () => {
+    const id = newSessionId("remote-hook");
+    assert.equal(await postEvent({ session_id: id, cwd: "/remote/repo" }, { token: TOKEN }), 200);
+    assert.equal(sessionRow(id).source, "remote_push");
+
+    const res = await post({
+      schema_version: 1,
+      session_id: id,
+      provider: "claude",
+      tool_events: [toolEventPayload()],
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.written, 1);
+    assert.deepEqual(res.body.errors || [], []);
+  });
+
+  it("keeps a hook without a token local (unchanged behaviour) and ingest-batch stays refused", async () => {
+    const id = newSessionId("local-hook");
+    assert.equal(await postEvent({ session_id: id, cwd: "/local/repo" }), 200);
+    assert.equal(sessionRow(id).source, "local");
+
+    const res = await post({
+      session_id: id,
+      provider: "claude",
+      tool_events: [toolEventPayload()],
+    });
+    assert.equal(res.body.written, 0);
+    assert.equal(res.body.errors[0].code, "SESSION_LOCALLY_OWNED");
+  });
+
+  it("treats a wrong token as a plain local hook, never a rejection", async () => {
+    const id = newSessionId("wrong-token");
+    assert.equal(await postEvent({ session_id: id }, { token: "not-the-token" }), 200);
+    assert.equal(sessionRow(id).source, "local");
+  });
+
+  it("ignores the token when REMOTE_PUSH_TOKEN is not configured", async () => {
+    delete process.env.REMOTE_PUSH_TOKEN;
+    const id = newSessionId("unconfigured");
+    assert.equal(await postEvent({ session_id: id }, { token: TOKEN }), 200);
+    assert.equal(sessionRow(id).source, "local");
+  });
+
+  it("never relabels an existing local session, even with a valid token", async () => {
+    const id = newSessionId("no-hijack");
+    assert.equal(await postEvent({ session_id: id }), 200);
+    assert.equal(
+      await postEvent({ session_id: id }, { token: TOKEN, hookType: "UserPromptSubmit" }),
+      200
+    );
+    assert.equal(sessionRow(id).source, "local");
+  });
+
+  it("records a supported non-default provider at birth and ignores an unsupported one", async () => {
+    const codex = newSessionId("remote-codex");
+    assert.equal(await postEvent({ session_id: codex, provider: "codex" }, { token: TOKEN }), 200);
+    assert.deepEqual(sessionRow(codex), { source: "remote_push", provider: "codex" });
+
+    const bogus = newSessionId("remote-bogus");
+    assert.equal(await postEvent({ session_id: bogus, provider: "bogus" }, { token: TOKEN }), 200);
+    assert.equal(sessionRow(bogus).source, "remote_push");
+    assert.notEqual(sessionRow(bogus).provider, "bogus");
+  });
+});
