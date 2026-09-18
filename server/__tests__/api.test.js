@@ -1152,6 +1152,20 @@ describe("Hook Event Processing", () => {
     assert.equal(sessRes.body.session.awaiting_reason, "notification");
   });
 
+  it("should flag waiting for a permission_prompt even when its text looks like compaction", async () => {
+    await post("/api/hooks/event", {
+      hook_type: "Notification",
+      data: {
+        session_id: "hook-sess-perm-compress",
+        notification_type: "permission_prompt",
+        message: "Claude needs your permission to use compress_logs",
+      },
+    });
+    const sessRes = await fetch("/api/sessions/hook-sess-perm-compress");
+    assert.ok(sessRes.body.session.awaiting_input_since);
+    assert.equal(sessRes.body.session.awaiting_reason, "notification");
+  });
+
   it("should fall back to the message text for an unknown notification_type", async () => {
     await post("/api/hooks/event", {
       hook_type: "SessionStart",

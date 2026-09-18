@@ -844,11 +844,18 @@ const processEvent = db.transaction((hookType, data) => {
 
     case "Notification": {
       const msg = data.message || "Notification received";
-      // Tag compaction-related notifications so they show as Compaction events
-      if (/compact|compress|context.*(reduc|truncat|summar)/i.test(msg)) {
+      // Tag compaction-related notifications so they show as Compaction events.
+      // The label is independent of blocking state: a structured blocking type
+      // (e.g. a permission_prompt whose tool name happens to contain
+      // "compress") must still raise Waiting. Text-only notifications keep the
+      // previous precedence -- a compaction-looking message is never blocking.
+      const isCompaction = /compact|compress|context.*(reduc|truncat|summar)/i.test(msg);
+      const hasStructuredType = typeof data.notification_type === "string";
+      if (isCompaction) {
         eventType = "Compaction";
-        summary = msg;
-      } else if (isBlockingNotification(data, msg)) {
+      }
+      summary = msg;
+      if ((!isCompaction || hasStructuredType) && isBlockingNotification(data, msg)) {
         // Claude Code is blocked waiting for the user (permission prompt or
         // explicit "waiting for input" notice). Stamp session + main agent
         // so the dashboard can surface a yellow "Waiting" badge until the
@@ -861,9 +868,6 @@ const processEvent = db.transaction((hookType, data) => {
           stmts.setAgentAwaitingInput.run(ts, "notification", mainAgentId);
           broadcast("agent_updated", stmts.getAgent.get(mainAgentId));
         }
-        summary = msg;
-      } else {
-        summary = msg;
       }
       break;
     }
