@@ -47,6 +47,36 @@ function isWaitingForUserMessage(msg) {
   return WAITING_INPUT_PATTERN.test(msg);
 }
 
+// Claude Code's structured Notification `notification_type` (hooks reference).
+// When present it is authoritative: the idle reminder ("Claude is waiting for
+// your input", type `idle_prompt`) matches WAITING_INPUT_PATTERN textually but
+// only means the turn ended and the user has not typed yet -- it does not block
+// anything, so it must not raise a Waiting badge. Unknown future types and
+// older Claude Code versions without the field fall back to the text pattern.
+const BLOCKING_NOTIFICATION_TYPES = new Set([
+  "permission_prompt",
+  "elicitation_dialog",
+  "elicitation_url_dialog",
+  "agent_needs_input",
+]);
+const NON_BLOCKING_NOTIFICATION_TYPES = new Set([
+  "idle_prompt",
+  "auth_success",
+  "elicitation_complete",
+  "elicitation_response",
+  "agent_completed",
+  "quota_auto_resume_fired",
+  "quota_auto_resume_stale",
+  "quota_auto_resume_disabled",
+]);
+
+function isBlockingNotification(data, msg) {
+  const type = data && typeof data.notification_type === "string" ? data.notification_type : null;
+  if (type && BLOCKING_NOTIFICATION_TYPES.has(type)) return true;
+  if (type && NON_BLOCKING_NOTIFICATION_TYPES.has(type)) return false;
+  return isWaitingForUserMessage(msg);
+}
+
 /**
  * Removes credentials, query values, and fragments from a collector-provided
  * Git remote before it reaches durable storage or an API response. Both URL
@@ -818,7 +848,7 @@ const processEvent = db.transaction((hookType, data) => {
       if (/compact|compress|context.*(reduc|truncat|summar)/i.test(msg)) {
         eventType = "Compaction";
         summary = msg;
-      } else if (isWaitingForUserMessage(msg)) {
+      } else if (isBlockingNotification(data, msg)) {
         // Claude Code is blocked waiting for the user (permission prompt or
         // explicit "waiting for input" notice). Stamp session + main agent
         // so the dashboard can surface a yellow "Waiting" badge until the
