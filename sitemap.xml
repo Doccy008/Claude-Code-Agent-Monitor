@@ -1,9 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset
+  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+>
   <url>
     <loc>https://hoangsonww.github.io/Claude-Code-Agent-Monitor/</loc>
-    <lastmod>2026-09-01</lastmod>
+    <lastmod>2026-09-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png</image:loc>
+      <image:title>Claude Code Agent Monitor</image:title>
+      <image:caption>Local-first real-time dashboard for Claude Code, Cursor, and Codex</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://hoangsonww.github.io/Claude-Code-Agent-Monitor/images/dashboard.png</image:loc>
+      <image:title>Dashboard · Monitor</image:title>
+      <image:caption>Overview stats, active agent cards, and the live activity feed</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://hoangsonww.github.io/Claude-Code-Agent-Monitor/images/analytics.png</image:loc>
+      <image:title>Analytics</image:title>
+      <image:caption>Token usage, activity heatmap, cost trends, and session outcomes</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://hoangsonww.github.io/Claude-Code-Agent-Monitor/images/mcp.png</image:loc>
+      <image:title>Local MCP server</image:title>
+      <image:caption>Typed local MCP tools across the full dashboard surface</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://hoangsonww.github.io/Claude-Code-Agent-Monitor/images/macos.png</image:loc>
+      <image:title>Native desktop app</image:title>
+      <image:caption>The dashboard as a native macOS app with tray-first monitoring</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://hoangsonww.github.io/Claude-Code-Agent-Monitor/wiki/</loc>
+    <lastmod>2026-09-29</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png</image:loc>
+      <image:title>Claude Code Agent Monitor Wiki</image:title>
+      <image:caption>Install, hooks, REST API, SQLite schema, MCP tools, plugins, and deployment</image:caption>
+    </image:image>
   </url>
 </urlset>
