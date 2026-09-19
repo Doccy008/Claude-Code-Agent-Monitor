@@ -1,8 +1,8 @@
 /**
  * @file AgentCard.tsx
  * @description Defines the AgentCard component that displays a summary of an
- * agent's name, status, task, current tool, timestamps, and native Codex
- * title plus a latest-two-human-turn context. Cards reuse session task-progress
+ * agent's name, status, task, current tool, timestamps, and native Cursor/Codex
+ * titles plus latest-two-human-turn context. Cards reuse session task-progress
  * donuts beside status when available. Durable cards navigate to session
  * details while the brief pre-identity Codex process card stays non-navigable.
  * @author Son Nguyen <hoangson091104@gmail.com>
@@ -153,13 +153,16 @@ export function AgentCard({ agent, session, label, onClick }: AgentCardProps) {
     ? ""
     : sessionName;
   const isCodexMain = isMain && session?.provider === "codex" && agent.name.trim() === "Codex";
+  const isCursorMain = isMain && session?.provider === "cursor";
   const displayName = isCodexMain
     ? `Codex · ${realSessionName || agent.session_id.slice(0, 8)}`
-    : isMain
-      ? mainAgentDisplayName(agent.name, realSessionName)
-      : agent.name;
-  // Session titles and requests are intentionally independent: Claude and
-  // Codex both persist two recent real human turns on the session, while a
+    : isCursorMain
+      ? `Cursor · ${realSessionName || agent.session_id.slice(0, 8)}`
+      : isMain
+        ? mainAgentDisplayName(agent.name, realSessionName)
+        : agent.name;
+  // Session titles and requests are intentionally independent: Claude,
+  // Cursor, and Codex persist two recent real human turns on the session, while a
   // main-agent task remains the truthful fallback for pre-preview history.
   // Subagents keep their own assigned task instead of inheriting the parent.
   const taskPreview = isMain
@@ -206,6 +209,7 @@ export function AgentCard({ agent, session, label, onClick }: AgentCardProps) {
   }
   const subtitle = isMain
     ? [
+        isCursorMain ? "Cursor" : null,
         cwdBase,
         subagentCount > 0 ? t("kanban:session.subagentSummary", { count: subagentCount }) : null,
         sessionTurns > 0 ? t("kanban:session.turnSummary", { count: sessionTurns }) : null,
@@ -324,7 +328,7 @@ export function AgentCard({ agent, session, label, onClick }: AgentCardProps) {
           </span>
         )}
         <span className="ml-auto flex items-center gap-1 min-w-0 opacity-50">
-          {realSessionName && !isCodexMain && (
+          {realSessionName && !isCodexMain && !isCursorMain && (
             <span className="truncate max-w-[10rem]">{realSessionName} ·</span>
           )}
           <span className="font-mono flex-shrink-0">{agent.session_id.slice(0, 8)}</span>

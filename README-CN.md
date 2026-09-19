@@ -1,10 +1,11 @@
-# Claude Code & Codex Agent Dashboard（Agent 监控面板）
+# Claude Code、Cursor 与 Codex Agent Dashboard（Agent 监控面板）
 
-### Claude Code & Codex Agent 活动实时监控平台 🚀
+### Claude Code、Cursor 与 Codex Agent 活动实时监控平台 🚀
 
-专业的 Dashboard，用于实时追踪和可视化你的 Claude Code & Codex Agent 会话、工具使用和子 Agent 编排。基于 Node.js、Express、React 和 SQLite 构建，通过 Claude Code & Codex 原生 Hook 系统直接集成，实现无缝的会话追踪和分析。
+专业的 Dashboard，用于实时追踪和可视化 Claude Code、Cursor 与 Codex Agent 会话、工具使用、对话历史、成本和子 Agent 编排。基于 Node.js、Express、React 和 SQLite，结合原生 Hook 与按提供方识别的本地 transcript 发现。
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-orange?style=flat-square&logo=claude&logoColor=white)
+![Cursor](https://img.shields.io/badge/Cursor-Agent_Monitoring-111827?style=flat-square&logo=cursor&logoColor=white)
 ![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-blue?style=flat-square&logo=githubcopilot&logoColor=white)
 ![Claude Code Plugins](https://img.shields.io/badge/Claude_Code_&_Codex-Plugins_&_Skills-orange?style=flat-square&logo=anthropic&logoColor=white)
 ![Model Context Protocol](https://img.shields.io/badge/Model_Context_Protocol-1.0-0f766e?style=flat-square&logo=modelcontextprotocol&logoColor=white)
@@ -125,6 +126,12 @@ graph LR
     style C fill:#1a1a28,stroke:#2a2a3d,color:#e4e4ed
     style D fill:#10b981,stroke:#34d399,color:#fff
 ```
+
+### Cursor 支持
+
+Cursor 无需单独设置：启动页选择 **Claude Code** 时会开箱即用地启用 Cursor 监控。Dashboard 会识别 `.cursor` transcript 路径，扫描 `~/.cursor/projects/*/agent-transcripts`，关联 `~/.cursor/chats` 元数据，并为既有会话回填原生标题、项目、提示预览、轮次和子 Agent。主会话与子 Agent JSONL 会保存到 Dashboard 数据目录，因此即使 Cursor 清理原历史，对话仍可查看。
+
+Cursor 卡片显示 `Cursor · <标题>` 以及项目、轮次和子 Agent 副标题。设置页提供独立可编辑的 **Cursor 定价**，覆盖 Cursor Grok、Composer 与已公布的第三方模型，不会误用 Claude 或 Codex 费率。可用 `DASHBOARD_CURSOR_HOME` 覆盖来源目录，并用 `DASHBOARD_CURSOR_SYNC_MS` 调整扫描周期。
 
 ### 多语言支持（i18n）
 
@@ -307,7 +314,7 @@ flowchart LR
 
 Dashboard 提供全面的功能来监控和分析你的 Claude Code 会话和 Agent：
 
-> **Cursor 会话（仅供参考）：** CCAM 会导入落在 `~/.claude` 下的所有 Agent 转录——本机以及已同步的远程机器。**Cursor** 的用量同样计入：Cursor 恰好与 Claude Code 使用相同的路径存放 Agent 会话。CCAM 不会区分是哪个应用写入了文件。
+> **内置 Cursor 支持：** CCAM 会从 `~/.cursor/projects/*/agent-transcripts` 发现 Cursor 原生历史，使用 `~/.cursor/chats` 元数据补全信息，以独立的 `cursor` 提供商保存，并在 Cursor 清理文件前创建会话快照。选择 Claude Code 仪表板范围时会自动包含 Cursor。目前远程 SSH 数据源只镜像 Claude Code 和 Codex 主目录；若要导入远程 Cursor，请将其主目录挂载或暴露到本机，并通过 `DASHBOARD_CURSOR_HOME` 指定。
 
 | 功能 | 描述 |
 |------|------|
@@ -644,6 +651,8 @@ flowchart LR
 | `DASHBOARD_LIVENESS_PROBE` | `1`（开启） | 设为 `0` 可禁用看门狗的**死亡会话存活性回收**（基于 `ps`/`lsof` 的探测，将匹配的本地 Claude Code 或 Codex CLI 进程已不存在的 `active` 会话标记为完成——恢复仪表盘停机期间丢失的 `SessionEnd`）。从**另一台机器**（家庭 Hook）转发来的会话会报告非 POSIX 的 `cwd`，会被回收自动跳过，因此混合的本地 + 转发部署不再需要关闭此项；仅在纯远程部署（本地进程无法证明任何事情）时才禁用它。在 Windows 和容器内自动禁用 |
 | `DASHBOARD_LIVENESS_IDLE_SECONDS` | `60` | **看门狗节拍**存活性回收的空闲门槛：只有当会话的 Transcript 至少有这么长时间未被写入时（磁盘上没有 Transcript 时以最后一次 Hook 写入为后备时钟），才会将其标记为完成，因此回合中或刚 resume 的会话绝不会因一次瞬时的探测偏差而消失。启动时的回收跳过该门槛——boot 时由探测单独决定，因此启动前一刻退出的会话会立即清除 |
 | `DASHBOARD_SESSION_SYNC_MS` | `30000` | 持续 `~/.claude/projects` 后台同步的轮询间隔（毫秒），用于显示启动后才加入、其会话从不经过 Hook 流入的项目。无论如何 `fs.watch` 监听器都会近乎即时触发；该轮询是安全兜底（监听器可能错过事件 / 在网络文件系统上不触发）。设为 `0` 可禁用轮询，同时让监听器保持运行 |
+| `DASHBOARD_CURSOR_HOME` | `~/.cursor` | 可选的 Cursor 原生主目录。Dashboard 读取 `projects/*/agent-transcripts`、关联 `chats` 元数据、回填已有会话，并在 Dashboard 数据目录中保存持久会话快照。 |
+| `DASHBOARD_CURSOR_SYNC_MS` | `5000` | 基于指纹的 Cursor 历史发现安全兜底间隔（毫秒）。兼容的实时 Hook 事件仍会立即采集；设为 `0` 可禁用周期扫描。 |
 | `DASHBOARD_CODEX_HOME` | `CODEX_HOME` 或 `~/.codex` | 可选的本地 Codex 状态目录。在设置中保存新位置会持久化此仪表盘专用覆盖、重新启用实时监视，并立即扫描新的 `sessions/` 树。 |
 | `DASHBOARD_CODEX_SYNC_MS` | `4000` | 仅追加 Codex rollout 的安全兜底轮询间隔（毫秒）。Codex Hook 会立即触发同一个增量采集器；设为 `0` 仅禁用轮询，在可用时仍保留文件系统监听器。 |
 | `DASHBOARD_CODEX_MAX_ATTEMPTS` | `5` | Codex 扫描针对同一个**未发生变化**的 rollout 连续尝试采集的失败次数上限，超出后便不再重试。扫描会刻意重新排队一个读取失败的 rollout，使瞬时故障（`SQLITE_BUSY`、写了一半的记录）在下一轮恢复；若不设上限，*永久性*故障会在整个进程生命周期内不断重复 —— 按 `DASHBOARD_CODEX_SYNC_MS` 默认的 4 秒计算，每个文件每天约 21,600 次尝试，每次都在单一 Node 线程上写一行日志。该计数包含第一次尝试、按文件独立统计，并在文件的大小或 mtime 发生变化时完全恢复，因此仅仅是写了一半的 rollout 仍能自行恢复。耗尽预算的那一次尝试会记录一条日志并注明上限。若慢速或不稳定的卷需要超过几轮扫描才能稳定，可调高此值 |

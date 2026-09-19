@@ -1,7 +1,7 @@
 /**
  * @file AgentCard.test.tsx
- * @description Unit tests for the AgentCard component, including Codex-native
- * titles and transcript-derived prompt context alongside standard agent details.
+ * @description Unit tests for the AgentCard component, including Cursor/Codex
+ * titles, subtitles, and transcript-derived prompt context.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -434,6 +434,28 @@ describe("AgentCard", () => {
     fireEvent.click(screen.getByText("Codex · codex-pr"));
     expect(screen.getByTestId("location")).toHaveTextContent("/kanban");
     expect(container.querySelector(".card-hover")?.className).toContain("cursor-default");
+  });
+
+  it("gives Cursor main cards a native title and an always-visible subtitle", () => {
+    renderCard(
+      <AgentCard
+        agent={makeAgent({ name: "Main Agent - Session 1bace4f0" })}
+        session={
+          {
+            id: "1bace4f0-506a-436b-badd-16209a514803",
+            name: "Ship the backend",
+            status: "active",
+            cwd: "/Users/example/project",
+            model: "grok-4.6",
+            provider: "cursor",
+            agent_count: 2,
+            metadata: JSON.stringify({ turn_count: 4 }),
+          } as Session
+        }
+      />
+    );
+    expect(screen.getByText("Cursor · Ship the backend")).toBeInTheDocument();
+    expect(screen.getByText("Cursor · project · 1 subagent · 4 turns")).toBeInTheDocument();
   });
 
   it("renders waiting badge and yellow accent when awaiting_input_since is set", () => {

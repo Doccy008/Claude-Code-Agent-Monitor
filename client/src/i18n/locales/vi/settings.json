@@ -32,6 +32,7 @@
   "pricing": {
     "title": "Định giá mô hình Claude của Anthropic",
     "navClaude": "Giá Claude",
+    "navCursor": "Giá Cursor",
     "navGpt": "Giá Codex",
     "description": "Đơn giá API Anthropic theo một triệu token (USD). Dùng % làm ký tự đại diện trong mẫu. Một số mô hình có mức giá giới thiệu có thời hạn (hiển thị màu tím); usage vào hoặc trước ngày kết thúc tính theo mức đó, sau đó tính theo mức chuẩn.",
     "introNote": "Ưu đãi ${{input}}/${{output}} đến {{until}}",
@@ -63,6 +64,29 @@
     "cacheWrite1h": "Ghi bộ nhớ đệm (1h)",
     "fastInput": "Đầu vào Fast",
     "fastOutput": "Đầu ra Fast",
+    "cursor": {
+      "title": "Định giá mô hình Cursor",
+      "description": "Đơn giá Cursor công bố cho mô hình riêng và mô hình bên thứ ba được định tuyến. USD trên 1M token; mẫu cụ thể nhất được ưu tiên.",
+      "source": "Xem Mô hình & Giá Cursor ↗",
+      "planNote": "Ước tính dùng bảng giá theo token của Cursor. Usage pool kèm gói, hạn mức, Auto routing và cách tính token của Teams có thể khiến phí thuê bao thực tế khác đi.",
+      "name": "Tên",
+      "input": "Đầu vào",
+      "write": "Ghi cache",
+      "cached": "Đọc cache",
+      "output": "Đầu ra",
+      "deleteConfirm": "Xóa quy tắc giá Cursor này?",
+      "tooltip": {
+        "title": "Cách hoạt động của định giá Cursor",
+        "howItWorks": "Cách hoạt động",
+        "howItWorksBody": "Usage phiên Cursor chỉ được tính theo bảng giá Cursor này. Token đầu vào, ghi cache, đọc cache và đầu ra được tính riêng theo USD trên 1M token.",
+        "patternsTitle": "Cú pháp mẫu",
+        "patternsBody": "Mẫu dùng ký tự đại diện % kiểu SQL. Mẫu cụ thể hơn được ưu tiên, nên mô hình Fast hoặc có phiên bản có thể ghi đè an toàn quy tắc họ mô hình rộng hơn.",
+        "manualUpdates": "Bạn phải cập nhật giá thủ công",
+        "manualUpdatesBody": "Cursor công bố thay đổi giá mô hình trên website và không có nguồn dữ liệu trực tiếp. Hãy thêm hoặc sửa quy tắc khi tên hay giá mô hình thay đổi.",
+        "apiPricing": "Hóa đơn gói có thể khác",
+        "apiPricingBody": "Bảng giá ước tính giá trị token. Dashboard không tái dựng usage kèm theo hàng tháng, usage bổ sung, Auto routing hay quy tắc tính phí Teams/Enterprise."
+      }
+    },
     "gpt": {
       "title": "Định giá mô hình GPT của OpenAI",
       "description": "Đơn giá API OpenAI công bố cho mức dùng Codex. Yêu cầu chuẩn dùng mức Short với đầu vào không quá 272K token và Long khi vượt 272K; Fast mode có đơn giá Short và Long riêng. USD trên 1M token.",
@@ -117,9 +141,9 @@
     "claude": "Claude Code",
     "codex": "Codex",
     "both": "Cả hai",
-    "claudeDescription": "Chỉ hiển thị dữ liệu Claude Code.",
+    "claudeDescription": "Hiển thị dữ liệu Claude Code và Cursor.",
     "codexDescription": "Chỉ hiển thị dữ liệu Codex.",
-    "bothDescription": "Kết hợp dữ liệu Claude Code và Codex.",
+    "bothDescription": "Kết hợp dữ liệu Claude Code, Cursor và Codex.",
     "beta": "Beta"
   },
   "hooks": {
@@ -317,7 +341,8 @@
     "agents": "Agent",
     "events": "sự kiện",
     "sessionsWithCost": "phiên có chi phí",
-    "pricingRules": "quy tắc định giá"
+    "pricingRules": "quy tắc định giá",
+    "cursorPricingRules": "quy tắc giá Cursor"
   },
   "messages": {
     "failedLoad": "Tải dữ liệu thất bại",
@@ -568,5 +593,5 @@
     "removeKeep": "Xóa (giữ dữ liệu)",
     "remoteSourceBadgeTitle": "Được thu thập từ một máy từ xa"
   },
-  "cursorPathsNote": "Chỉ mang tính thông tin: phiên Cursor cũng được tính — Cursor tình cờ dùng cùng đường dẫn ~/.claude với Claude Code (cục bộ và trên máy từ xa đã đồng bộ)."
+  "cursorPathsNote": "Cursor được bao gồm trong phạm vi dashboard Claude Code. Lịch sử cục bộ được tự động phát hiện và lưu snapshot từ ~/.cursor; import SSH chỉ đồng bộ Claude không đồng bộ thư mục Cursor từ xa."
 }

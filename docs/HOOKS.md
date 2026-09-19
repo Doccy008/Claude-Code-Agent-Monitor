@@ -23,7 +23,7 @@ Comprehensive guide to integrating with Claude Code's hook system for real-time 
 
 Claude Code provides a hook system that allows external tools to receive real-time events during agent execution. Agent Dashboard uses these hooks to capture session lifecycle, tool executions, and notifications.
 
-> **Cursor (informational):** Live hooks fire from Claude Code. **Cursor** sessions that only exist as JSONL under `~/.claude` (Cursor uses the same paths locally) are still counted — they appear via startup import, continuous project sync, or remote SSH sync, not via hooks.
+> **Cursor:** Compatible live hook envelopes are classified from native `.cursor` transcript paths. Startup and periodic scans independently discover `~/.cursor/projects/*/agent-transcripts`, so sessions created while the dashboard was offline are still backfilled and snapshotted.
 
 ```mermaid
 graph TB
@@ -656,6 +656,10 @@ graph TB
 ```
 
 ### Transcript-derived sync
+
+Cursor uses the same fail-safe hook transport where available, but its durable history lives under `~/.cursor`, not `~/.claude`. A hook payload whose `transcript_path` matches `~/.cursor/projects/*/agent-transcripts/<session>/<session>.jsonl` is classified as `provider = 'cursor'`. The hook response remains immediate; a background enrichment pass joins `~/.cursor/chats/*/<session>/meta.json` and `prompt_history.json`, updates the native title/cwd/turn metadata, imports sibling `subagents/*.jsonl`, and snapshots the files under the dashboard data directory.
+
+Startup and periodic `cursor-ingest` sweeps also discover sessions that existed before the dashboard or never emitted a hook. This is the backfill path for older placeholder cards. Conversation reads resolve the original path first and the durable snapshot second, so the UI continues to show Cursor messages and tool calls after Cursor removes its own transcript. `DASHBOARD_CURSOR_HOME` overrides the root and `DASHBOARD_CURSOR_SYNC_MS=0` disables only the periodic scan.
 
 On every event that carries a `transcript_path`, the shared `TranscriptCache` re-reads the JSONL (incrementally) and the ingestor keeps three session fields in sync with what the user is actually doing in the CLI:
 

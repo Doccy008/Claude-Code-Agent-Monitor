@@ -9,7 +9,7 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Claude Code Agent Monitor - Project Wiki</title>
+    <title>Claude Code, Cursor & Codex Agent Monitor - Project Wiki</title>
     <meta
       name="description"
       content="Comprehensive technical wiki for Claude Code Agent Monitor — real-time local monitoring with MCP server integration plus Claude Code and Codex extension scaffolding."
@@ -44,7 +44,7 @@
     <meta name="twitter:title" content="Claude Code Agent Monitor - Project Wiki" />
     <meta
       name="twitter:description"
-      content="Real-time local monitoring for Claude Code agent activity with MCP integration, extension scaffolding, analytics, and WebSocket push."
+      content="Real-time local monitoring for Claude Code, Cursor, and Codex with durable conversations, provider pricing, analytics, MCP integration, and WebSocket push."
     />
     <meta name="twitter:image" content="../og-image.svg" />
     <meta
@@ -703,11 +703,11 @@
             <span class="dot"></span>
             Real-time · Local-first · Zero-config
           </div>
-          <h1 style="padding-bottom: 2px">Claude Code Agent Monitor</h1>
+          <h1 style="padding-bottom: 2px">Claude Code, Cursor &amp; Codex Agent Monitor</h1>
           <p class="hero-desc">
-            A professional monitoring platform for Claude Code agent activity. Captures sessions,
-            agents, and tool events via native hooks, persists them in SQLite, and streams updates
-            to a React UI over WebSocket — with no external services required.
+            A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures
+            sessions, conversations, agents, tools, and provider-specific cost, persists them in
+            SQLite, and streams updates to React over WebSocket.
           </p>
           <div class="marquee-wrapper">
             <div class="marquee-track">
@@ -757,6 +757,7 @@
                 <span class="tech-badge badge-github">GitHub Actions</span>
                 <span class="tech-badge badge-vscode">VS Code Extension</span>
                 <span class="tech-badge badge-claude">Claude Code</span>
+                <span class="tech-badge badge-claude">Cursor</span>
                 <span class="tech-badge badge-claude">Claude Plugins</span>
                 <span class="tech-badge badge-claude">Claude CLI</span>
                 <span class="tech-badge badge-node">Electron 35</span>
@@ -833,6 +834,7 @@
                 <span class="tech-badge badge-github">GitHub Actions</span>
                 <span class="tech-badge badge-vscode">VS Code Extension</span>
                 <span class="tech-badge badge-claude">Claude Code</span>
+                <span class="tech-badge badge-claude">Cursor</span>
                 <span class="tech-badge badge-claude">Claude Plugins</span>
                 <span class="tech-badge badge-claude">Claude CLI</span>
                 <span class="tech-badge badge-node">Electron 35</span>
@@ -969,6 +971,17 @@
                     hover badges and column headers for the exact reason and lifecycle rules. Cards
                     show model, cumulative cost, and current tool, while WebSocket updates keep lane
                     counts synchronized with the live event store.
+                  </p>
+                </div>
+                <div class="feature-card">
+                  <div class="feature-icon ic-emerald">▣</div>
+                  <h3>Cursor Monitoring</h3>
+                  <p>
+                    Cursor is included with the Claude Code scope out of the box. The dashboard
+                    discovers <code>~/.cursor</code> transcripts, backfills titles, projects,
+                    prompts, turns, and subagents, and snapshots main/subagent JSONL so Conversation
+                    survives Cursor cleanup. Native card subtitles and a separate editable Cursor
+                    rate card cover Grok, Composer, and routed third-party models.
                   </p>
                 </div>
                 <div class="feature-card">
@@ -2032,6 +2045,16 @@ npm run mcp:start:repl         # interactive CLI with tab completion</code></pre
                   <td>
                     Poll interval for the background sync of <code>~/.claude/projects</code>; <code>0</code> disables the poll but keeps the filesystem watcher
                   </td>
+                </tr>
+                <tr>
+                  <td><code>DASHBOARD_CURSOR_HOME</code></td>
+                  <td><code>~/.cursor</code></td>
+                  <td>Optional Cursor home containing <code>projects/agent-transcripts</code> and <code>chats</code> metadata. Local history is backfilled and snapshotted without separate hook installation.</td>
+                </tr>
+                <tr>
+                  <td><code>DASHBOARD_CURSOR_SYNC_MS</code></td>
+                  <td><code>5000</code></td>
+                  <td>Cursor history safety-net interval (ms). <code>0</code> disables periodic discovery; compatible live hook events still ingest immediately.</td>
                 </tr>
                 <tr>
                   <td><code>DASHBOARD_CODEX_HOME</code></td>
@@ -7106,8 +7129,8 @@ npm run install-hooks</code></pre>
     <!-- Body-content translations — must load before script.js so the
          i18n engine sees window.__WIKI_CONTENT_I18N. Both are deferred, so they
          run in document order. -->
-    <script src="i18n-content.js?v=95" defer></script>
-    <script src="script.js?v=57" defer></script>
+    <script src="i18n-content.js?v=97" defer></script>
+    <script src="script.js?v=58" defer></script>
     <script>
       (function () {
         var carousel = document.getElementById("feature-carousel");

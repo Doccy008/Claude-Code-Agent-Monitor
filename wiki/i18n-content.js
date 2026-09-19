@@ -7716,3 +7716,82 @@ Object.assign(window.__WIKI_CONTENT_I18N.es, {
 Object.assign(window.__WIKI_CONTENT_I18N.plain.es, {
   "Remote Push Ingestion": "Ingesta por remote push",
 });
+
+// Cursor monitoring shipped in v2.2.2. Keep the new hero and feature card in
+// parity across every localized wiki surface.
+Object.assign(window.__WIKI_CONTENT_I18N.zh, {
+  "A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures sessions, conversations, agents, tools, and provider-specific cost, persists them in SQLite, and streams updates to React over WebSocket.":
+    "面向 Claude Code、Cursor 与 Codex 的专业本地监控平台。它采集会话、对话、Agent、工具和按提供方区分的成本，持久化到 SQLite，并通过 WebSocket 将更新推送到 React。",
+  "Cursor is included with the Claude Code scope out of the box. The dashboard discovers <code>~/.cursor</code> transcripts, backfills titles, projects, prompts, turns, and subagents, and snapshots main/subagent JSONL so Conversation survives Cursor cleanup. Native card subtitles and a separate editable Cursor rate card cover Grok, Composer, and routed third-party models.":
+    "Cursor 开箱即用地包含在 Claude Code 范围内。Dashboard 会发现 <code>~/.cursor</code> Transcript，回填标题、项目、Prompt、轮次和子 Agent，并保存主会话与子 Agent JSONL 快照，使 Conversation 在 Cursor 清理后仍可用。原生卡片副标题和独立可编辑的 Cursor 价目表覆盖 Grok、Composer 及路由的第三方模型。",
+});
+Object.assign(window.__WIKI_CONTENT_I18N.plain.zh, {
+  "Claude Code, Cursor & Codex Agent Monitor": "Claude Code、Cursor 与 Codex Agent Monitor",
+  "A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures sessions, conversations, agents, tools, and provider-specific cost, persists them in SQLite, and streams updates to React over WebSocket.":
+    "面向 Claude Code、Cursor 与 Codex 的专业本地监控平台。它采集会话、对话、Agent、工具和按提供方区分的成本，持久化到 SQLite，并通过 WebSocket 将更新推送到 React。",
+  "Cursor Monitoring": "Cursor 监控",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.vi, {
+  "A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures sessions, conversations, agents, tools, and provider-specific cost, persists them in SQLite, and streams updates to React over WebSocket.":
+    "Nền tảng giám sát cục bộ chuyên nghiệp cho Claude Code, Cursor và Codex. Hệ thống thu thập phiên, hội thoại, agent, công cụ và chi phí theo nhà cung cấp, lưu trong SQLite và đẩy cập nhật tới React qua WebSocket.",
+  "Cursor is included with the Claude Code scope out of the box. The dashboard discovers <code>~/.cursor</code> transcripts, backfills titles, projects, prompts, turns, and subagents, and snapshots main/subagent JSONL so Conversation survives Cursor cleanup. Native card subtitles and a separate editable Cursor rate card cover Grok, Composer, and routed third-party models.":
+    "Cursor được bao gồm sẵn trong phạm vi Claude Code. Dashboard phát hiện transcript ở <code>~/.cursor</code>, backfill tiêu đề, dự án, prompt, lượt và agent phụ, đồng thời snapshot JSONL chính/agent phụ để Conversation vẫn tồn tại sau khi Cursor dọn dẹp. Phụ đề thẻ gốc và bảng giá Cursor riêng có thể chỉnh sửa hỗ trợ Grok, Composer và mô hình bên thứ ba được định tuyến.",
+});
+Object.assign(window.__WIKI_CONTENT_I18N.plain.vi, {
+  "Claude Code, Cursor & Codex Agent Monitor": "Giám sát Agent Claude Code, Cursor & Codex",
+  "A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures sessions, conversations, agents, tools, and provider-specific cost, persists them in SQLite, and streams updates to React over WebSocket.":
+    "Nền tảng giám sát cục bộ chuyên nghiệp cho Claude Code, Cursor và Codex. Hệ thống thu thập phiên, hội thoại, agent, công cụ và chi phí theo nhà cung cấp, lưu trong SQLite và đẩy cập nhật tới React qua WebSocket.",
+  "Cursor Monitoring": "Giám sát Cursor",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.ko, {
+  "A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures sessions, conversations, agents, tools, and provider-specific cost, persists them in SQLite, and streams updates to React over WebSocket.":
+    "Claude Code, Cursor, Codex를 위한 전문 로컬 모니터링 플랫폼입니다. 세션, 대화, 에이전트, 도구 및 공급자별 비용을 수집해 SQLite에 저장하고 WebSocket으로 React에 업데이트를 전송합니다.",
+  "Cursor is included with the Claude Code scope out of the box. The dashboard discovers <code>~/.cursor</code> transcripts, backfills titles, projects, prompts, turns, and subagents, and snapshots main/subagent JSONL so Conversation survives Cursor cleanup. Native card subtitles and a separate editable Cursor rate card cover Grok, Composer, and routed third-party models.":
+    "Cursor는 Claude Code 범위에 기본 포함됩니다. Dashboard는 <code>~/.cursor</code> Transcript를 검색하고 제목, 프로젝트, Prompt, 턴, 서브에이전트를 백필하며 메인/서브에이전트 JSONL을 스냅샷하여 Cursor 정리 후에도 Conversation을 유지합니다. 네이티브 카드 부제목과 별도 편집 가능한 Cursor 요금표가 Grok, Composer 및 라우팅된 타사 모델을 지원합니다.",
+});
+Object.assign(window.__WIKI_CONTENT_I18N.plain.ko, {
+  "Claude Code, Cursor & Codex Agent Monitor": "Claude Code, Cursor & Codex Agent Monitor",
+  "A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures sessions, conversations, agents, tools, and provider-specific cost, persists them in SQLite, and streams updates to React over WebSocket.":
+    "Claude Code, Cursor, Codex를 위한 전문 로컬 모니터링 플랫폼입니다. 세션, 대화, 에이전트, 도구 및 공급자별 비용을 수집해 SQLite에 저장하고 WebSocket으로 React에 업데이트를 전송합니다.",
+  "Cursor Monitoring": "Cursor 모니터링",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.es, {
+  "A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures sessions, conversations, agents, tools, and provider-specific cost, persists them in SQLite, and streams updates to React over WebSocket.":
+    "Una plataforma profesional de monitoreo local para Claude Code, Cursor y Codex. Captura sesiones, conversaciones, agentes, herramientas y costos por proveedor, los guarda en SQLite y transmite actualizaciones a React mediante WebSocket.",
+  "Cursor is included with the Claude Code scope out of the box. The dashboard discovers <code>~/.cursor</code> transcripts, backfills titles, projects, prompts, turns, and subagents, and snapshots main/subagent JSONL so Conversation survives Cursor cleanup. Native card subtitles and a separate editable Cursor rate card cover Grok, Composer, and routed third-party models.":
+    "Cursor se incluye de fábrica con el ámbito de Claude Code. El panel descubre transcripciones en <code>~/.cursor</code>, completa títulos, proyectos, prompts, turnos y subagentes, y guarda los JSONL principales y secundarios para conservar Conversation tras la limpieza de Cursor. Los subtítulos nativos y una tarifa de Cursor editable e independiente cubren Grok, Composer y modelos de terceros enrutados.",
+});
+Object.assign(window.__WIKI_CONTENT_I18N.plain.es, {
+  "Claude Code, Cursor & Codex Agent Monitor": "Monitor de agentes Claude Code, Cursor y Codex",
+  "A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures sessions, conversations, agents, tools, and provider-specific cost, persists them in SQLite, and streams updates to React over WebSocket.":
+    "Una plataforma profesional de monitoreo local para Claude Code, Cursor y Codex. Captura sesiones, conversaciones, agentes, herramientas y costos por proveedor, los guarda en SQLite y transmite actualizaciones a React mediante WebSocket.",
+  "Cursor Monitoring": "Monitoreo de Cursor",
+});
+
+Object.assign(window.__WIKI_CONTENT_I18N.zh, {
+  "Optional Cursor home containing <code>projects/agent-transcripts</code> and <code>chats</code> metadata. Local history is backfilled and snapshotted without separate hook installation.":
+    "可选的 Cursor 主目录，包含 <code>projects/agent-transcripts</code> 与 <code>chats</code> 元数据。无需单独安装 Hook 即可回填本地历史并创建快照。",
+  "Cursor history safety-net interval (ms). <code>0</code> disables periodic discovery; compatible live hook events still ingest immediately.":
+    "Cursor 历史安全兜底间隔（毫秒）。<code>0</code> 会禁用周期发现；兼容的实时 Hook 事件仍会立即采集。",
+});
+Object.assign(window.__WIKI_CONTENT_I18N.vi, {
+  "Optional Cursor home containing <code>projects/agent-transcripts</code> and <code>chats</code> metadata. Local history is backfilled and snapshotted without separate hook installation.":
+    "Thư mục Cursor tùy chọn chứa <code>projects/agent-transcripts</code> và metadata <code>chats</code>. Lịch sử cục bộ được backfill và snapshot mà không cần cài Hook riêng.",
+  "Cursor history safety-net interval (ms). <code>0</code> disables periodic discovery; compatible live hook events still ingest immediately.":
+    "Khoảng an toàn cho lịch sử Cursor (ms). <code>0</code> tắt phát hiện định kỳ; các sự kiện Hook trực tiếp tương thích vẫn được ingest ngay.",
+});
+Object.assign(window.__WIKI_CONTENT_I18N.ko, {
+  "Optional Cursor home containing <code>projects/agent-transcripts</code> and <code>chats</code> metadata. Local history is backfilled and snapshotted without separate hook installation.":
+    "<code>projects/agent-transcripts</code>와 <code>chats</code> 메타데이터를 포함하는 선택적 Cursor 홈입니다. 별도 Hook 설치 없이 로컬 기록을 백필하고 스냅샷합니다.",
+  "Cursor history safety-net interval (ms). <code>0</code> disables periodic discovery; compatible live hook events still ingest immediately.":
+    "Cursor 기록 안전망 간격(ms)입니다. <code>0</code>은 주기 검색을 끄지만 호환 실시간 Hook 이벤트는 계속 즉시 수집됩니다.",
+});
+Object.assign(window.__WIKI_CONTENT_I18N.es, {
+  "Optional Cursor home containing <code>projects/agent-transcripts</code> and <code>chats</code> metadata. Local history is backfilled and snapshotted without separate hook installation.":
+    "Directorio opcional de Cursor con <code>projects/agent-transcripts</code> y metadatos de <code>chats</code>. El historial local se completa y conserva sin instalar Hooks por separado.",
+  "Cursor history safety-net interval (ms). <code>0</code> disables periodic discovery; compatible live hook events still ingest immediately.":
+    "Intervalo de seguridad del historial de Cursor (ms). <code>0</code> desactiva el descubrimiento periódico; los eventos Hook compatibles siguen ingresándose de inmediato.",
+});

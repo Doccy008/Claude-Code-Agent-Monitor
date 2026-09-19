@@ -59,6 +59,7 @@ router.get("/", (req, res) => {
   // Calculate total cost across all sessions
   const pricingRules = stmts.listPricing.all();
   const gptPricingRules = stmts.listGptPricing.all();
+  const cursorPricingRules = stmts.listCursorPricing.all();
   // Join the owning session's start date so each bucket is priced at the rate
   // effective when it was used (date-effective promo rates, e.g. Sonnet 5 intro).
   const allTokenUsage = isScoped
@@ -69,7 +70,12 @@ router.get("/", (req, res) => {
         )
         .all();
 
-  const totalCost = calculateProviderCost(allTokenUsage, pricingRules, gptPricingRules).total_cost;
+  const totalCost = calculateProviderCost(
+    allTokenUsage,
+    pricingRules,
+    gptPricingRules,
+    cursorPricingRules
+  ).total_cost;
 
   res.json({
     tokens: {

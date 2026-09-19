@@ -45,6 +45,8 @@ const EXPECTED_API_PATHS = [
   "/api/hooks/event",
   "/api/hooks/codex",
   "/api/pricing",
+  "/api/pricing/cursor",
+  "/api/pricing/cursor/{pattern}",
   "/api/pricing/gpt",
   "/api/pricing/gpt/{pattern}",
   "/api/pricing/{pattern}",
@@ -666,9 +668,9 @@ describe("Stats API", () => {
 });
 
 // ============================================================
-// Settings and GPT pricing API
+// Settings, Cursor, and GPT pricing API
 // ============================================================
-describe("Settings and GPT pricing API", () => {
+describe("Settings, Cursor, and GPT pricing API", () => {
   it("returns the active Codex home without exposing a raw environment override", async () => {
     const res = await fetch("/api/settings/codex-home");
     assert.equal(res.status, 200);
@@ -735,10 +737,54 @@ describe("Settings and GPT pricing API", () => {
     await put("/api/pricing/gpt", rule);
   });
 
+  it("seeds and validates the independent Cursor pricing card", async () => {
+    const seeded = await fetch("/api/pricing/cursor");
+    assert.equal(seeded.status, 200);
+    const grok = seeded.body.pricing.find((rule) => rule.model_pattern === "grok-4.6%");
+    assert.deepEqual(
+      [
+        grok.input_per_mtok,
+        grok.cache_write_per_mtok,
+        grok.cache_read_per_mtok,
+        grok.output_per_mtok,
+      ],
+      [2, 0, 0.5, 6]
+    );
+
+    const pattern = "cursor-test-model%";
+    const created = await put("/api/pricing/cursor", {
+      model_pattern: pattern,
+      display_name: "Cursor Test Model",
+      input_per_mtok: 1,
+      cache_write_per_mtok: 2,
+      cache_read_per_mtok: 0.25,
+      output_per_mtok: 4,
+    });
+    assert.equal(created.status, 200);
+    assert.equal(created.body.pricing.output_per_mtok, 4);
+
+    const invalid = await put("/api/pricing/cursor", {
+      model_pattern: pattern,
+      display_name: "Cursor Test Model",
+      input_per_mtok: -1,
+      output_per_mtok: 999,
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal(stmts.getCursorPricing.get(pattern).output_per_mtok, 4);
+
+    const removed = await fetch(`/api/pricing/cursor/${encodeURIComponent(pattern)}`, {
+      method: "DELETE",
+    });
+    assert.equal(removed.status, 200);
+    assert.equal(stmts.getCursorPricing.get(pattern), undefined);
+  });
+
   it("resets one provider without overwriting the other provider's custom rules", async () => {
     const claudePattern = "test-claude-custom%";
+    const cursorPattern = "test-cursor-custom%";
     const gptPattern = "test-gpt-custom%";
     stmts.upsertPricing.run(claudePattern, "Custom Claude", 1, 2, 0.1, 1.25, 2, 0, 0);
+    stmts.upsertCursorPricing.run(cursorPattern, "Custom Cursor", 1, 1.25, 0.1, 2);
     stmts.upsertGptPricing.run(
       gptPattern,
       "Custom GPT",
@@ -760,6 +806,10 @@ describe("Settings and GPT pricing API", () => {
     assert.equal(codexReset.status, 200);
     assert.equal(codexReset.body.provider, "codex");
     assert.ok(stmts.getPricing.get(claudePattern), "Claude custom rule must survive a GPT reset");
+    assert.ok(
+      stmts.getCursorPricing.get(cursorPattern),
+      "Cursor custom rule must survive a GPT reset"
+    );
     assert.equal(stmts.getGptPricing.get(gptPattern), undefined);
 
     stmts.upsertGptPricing.run(
@@ -782,7 +832,17 @@ describe("Settings and GPT pricing API", () => {
     assert.equal(claudeReset.status, 200);
     assert.equal(claudeReset.body.provider, "claude");
     assert.equal(stmts.getPricing.get(claudePattern), undefined);
+    assert.ok(
+      stmts.getCursorPricing.get(cursorPattern),
+      "Cursor custom rule must survive a Claude reset"
+    );
     assert.ok(stmts.getGptPricing.get(gptPattern), "GPT custom rule must survive a Claude reset");
+
+    const cursorReset = await post("/api/settings/reset-pricing", { provider: "cursor" });
+    assert.equal(cursorReset.status, 200);
+    assert.equal(cursorReset.body.provider, "cursor");
+    assert.equal(stmts.getCursorPricing.get(cursorPattern), undefined);
+    assert.ok(stmts.getGptPricing.get(gptPattern), "GPT custom rule must survive a Cursor reset");
 
     const invalid = await post("/api/settings/reset-pricing", { provider: "other" });
     assert.equal(invalid.status, 400);

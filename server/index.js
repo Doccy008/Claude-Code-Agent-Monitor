@@ -500,6 +500,14 @@ function startBackgroundServices() {
   } catch (err) {
     console.warn("session sync failed to start:", err.message);
   }
+  // Cursor emits Claude-compatible live hooks, but its durable session history
+  // lives under ~/.cursor. A dedicated importer fills metadata that those hooks
+  // omit and snapshots transcripts before Cursor's own cleanup removes them.
+  try {
+    startCursorSessionSync(broadcast);
+  } catch (err) {
+    console.warn("Cursor session sync failed to start:", err.message);
+  }
   // Codex rollouts are append-only JSONL files under ~/.codex/sessions. Hooks
   // nudge this path immediately; this watcher + short poll closes the gap when
   // a hook is unavailable, untrusted, or fired while the dashboard was down.
@@ -539,6 +547,51 @@ function startBackgroundServices() {
   } catch (err) {
     console.warn("dashboard-runs reconciliation failed:", err.message);
   }
+}
+
+/**
+ * Keep Cursor's native transcript tree in sync. Hooks provide the low-latency
+ * event path; this bounded poll supplies startup backfill, catches sessions
+ * created while CCAM was offline, and refreshes native titles/prompt history.
+ */
+function startCursorSessionSync(broadcast) {
+  const POLL_MS = process.env.DASHBOARD_CURSOR_SYNC_MS
+    ? Number(process.env.DASHBOARD_CURSOR_SYNC_MS)
+    : 5_000;
+  if (!Number.isFinite(POLL_MS) || POLL_MS <= 0) return;
+
+  const dbModule = require("./db");
+  const { syncCursorSessions } = require("./lib/cursor-ingest");
+  let running = false;
+  let queued = false;
+  const tick = () => {
+    if (running) {
+      queued = true;
+      return;
+    }
+    running = true;
+    syncCursorSessions(dbModule, {
+      onSession(result) {
+        if (!result.session) return;
+        broadcast(result.created ? "session_created" : "session_updated", result.session);
+        for (const agent of dbModule.stmts.listAgentsBySession.all(result.session.id)) {
+          broadcast("agent_updated", agent);
+        }
+      },
+    })
+      .catch((err) => console.warn("Cursor session sync tick failed:", err?.message || err))
+      .finally(() => {
+        running = false;
+        if (queued) {
+          queued = false;
+          tick();
+        }
+      });
+  };
+  const boot = setTimeout(tick, 750);
+  if (boot.unref) boot.unref();
+  const timer = setInterval(tick, POLL_MS);
+  if (timer.unref) timer.unref();
 }
 
 /**

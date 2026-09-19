@@ -47,10 +47,10 @@ function createOpenApiSpec() {
   const spec = {
     openapi: "3.0.3",
     info: {
-      title: "Agent Dashboard for Claude Code API",
+      title: "Agent Dashboard for Claude Code, Cursor, and Codex API",
       version: pkg.version || "1.0.0",
       description:
-        "HTTP API for real-time Claude Code session monitoring, agent lifecycle tracking, analytics, pricing, hooks ingestion, and workflow intelligence.",
+        "HTTP API for real-time Claude Code, Cursor, and Codex session monitoring, agent lifecycle tracking, analytics, provider-specific pricing, hooks ingestion, and workflow intelligence.",
       contact: {
         name: "Son Nguyen",
         email: "hoangson091104@gmail.com",
@@ -80,7 +80,7 @@ function createOpenApiSpec() {
     tags: [
       { name: "Health", description: "Service liveness checks" },
       { name: "Metrics", description: "Prometheus / OpenMetrics scrape endpoint" },
-      { name: "Sessions", description: "Claude Code and Codex session lifecycle" },
+      { name: "Sessions", description: "Claude Code, Cursor, and Codex session lifecycle" },
       { name: "Agents", description: "Main/subagent records and status" },
       { name: "Events", description: "Event stream persistence" },
       { name: "Stats", description: "High-level dashboard counters" },
@@ -198,7 +198,7 @@ function createOpenApiSpec() {
           required: false,
           schema: { type: "string", example: "claude,codex" },
           description:
-            "Comma-separated product providers to include: `claude`, `codex`, or both. Omit to include every provider.",
+            "Comma-separated stored providers to include: `claude`, `cursor`, and/or `codex`. Requesting `claude` also includes Cursor because the product scope groups their local workflows. Omit to include every provider.",
         },
       },
       schemas: {
@@ -360,6 +360,7 @@ function createOpenApiSpec() {
                 "Credential-free Git remote URL first observed by an authenticated collector. Consumers may canonicalize it to match a repository across machine-local working-directory paths.",
             },
             model: { type: "string", nullable: true },
+            provider: { type: "string", enum: ["claude", "cursor", "codex"] },
             started_at: { type: "string", format: "date-time" },
             ended_at: { type: "string", format: "date-time", nullable: true },
             metadata: {
@@ -490,7 +491,7 @@ function createOpenApiSpec() {
             version: {
               type: "string",
               description: "Dashboard release version from package.json",
-              example: "2.2.1",
+              example: "2.2.2",
             },
             timestamp: { type: "string", format: "date-time" },
           },
@@ -1081,6 +1082,54 @@ function createOpenApiSpec() {
           required: ["pricing"],
           properties: { pricing: { $ref: "#/components/schemas/PricingRule" } },
         },
+        CursorPricingRule: {
+          type: "object",
+          required: [
+            "model_pattern",
+            "display_name",
+            "input_per_mtok",
+            "cache_write_per_mtok",
+            "cache_read_per_mtok",
+            "output_per_mtok",
+            "updated_at",
+          ],
+          properties: {
+            model_pattern: { type: "string" },
+            display_name: { type: "string" },
+            input_per_mtok: { type: "number", minimum: 0 },
+            cache_write_per_mtok: { type: "number", minimum: 0 },
+            cache_read_per_mtok: { type: "number", minimum: 0 },
+            output_per_mtok: { type: "number", minimum: 0 },
+            updated_at: { type: "string", format: "date-time" },
+          },
+        },
+        CursorPricingUpsertRequest: {
+          type: "object",
+          required: ["model_pattern", "display_name"],
+          properties: {
+            model_pattern: { type: "string" },
+            display_name: { type: "string" },
+            input_per_mtok: { type: "number", minimum: 0 },
+            cache_write_per_mtok: { type: "number", minimum: 0 },
+            cache_read_per_mtok: { type: "number", minimum: 0 },
+            output_per_mtok: { type: "number", minimum: 0 },
+          },
+        },
+        CursorPricingListResponse: {
+          type: "object",
+          required: ["pricing"],
+          properties: {
+            pricing: {
+              type: "array",
+              items: { $ref: "#/components/schemas/CursorPricingRule" },
+            },
+          },
+        },
+        CursorPricingUpsertResponse: {
+          type: "object",
+          required: ["pricing"],
+          properties: { pricing: { $ref: "#/components/schemas/CursorPricingRule" } },
+        },
         GptPricingRule: {
           type: "object",
           required: ["model_pattern", "display_name", "updated_at"],
@@ -1490,11 +1539,15 @@ function createOpenApiSpec() {
         },
         ResetPricingResponse: {
           type: "object",
-          required: ["ok", "provider", "pricing", "gpt_pricing"],
+          required: ["ok", "provider", "pricing", "cursor_pricing", "gpt_pricing"],
           properties: {
             ok: { type: "boolean", enum: [true] },
-            provider: { type: "string", enum: ["claude", "codex", "both"] },
+            provider: { type: "string", enum: ["claude", "cursor", "codex", "both"] },
             pricing: { type: "array", items: { $ref: "#/components/schemas/PricingRule" } },
+            cursor_pricing: {
+              type: "array",
+              items: { $ref: "#/components/schemas/CursorPricingRule" },
+            },
             gpt_pricing: {
               type: "array",
               items: { $ref: "#/components/schemas/GptPricingRule" },
@@ -1512,6 +1565,7 @@ function createOpenApiSpec() {
             "events",
             "token_usage",
             "model_pricing",
+            "cursor_model_pricing",
             "gpt_model_pricing",
           ],
           properties: {
@@ -1521,7 +1575,7 @@ function createOpenApiSpec() {
                 'Bundle format marker (always "ccam-export" for exports from this version).',
               example: "ccam-export",
             },
-            version: { type: "integer", description: "Bundle schema version.", example: 2 },
+            version: { type: "integer", description: "Bundle schema version.", example: 3 },
             exported_at: { type: "string", format: "date-time" },
             sessions: { type: "array", items: { $ref: "#/components/schemas/Session" } },
             agents: { type: "array", items: { $ref: "#/components/schemas/Agent" } },
@@ -1540,6 +1594,10 @@ function createOpenApiSpec() {
             },
             alert_rules: { type: "array", items: { type: "object", additionalProperties: true } },
             model_pricing: { type: "array", items: { $ref: "#/components/schemas/PricingRule" } },
+            cursor_model_pricing: {
+              type: "array",
+              items: { $ref: "#/components/schemas/CursorPricingRule" },
+            },
             gpt_model_pricing: {
               type: "array",
               items: { $ref: "#/components/schemas/GptPricingRule" },
@@ -2536,6 +2594,74 @@ function createOpenApiSpec() {
           },
         },
       },
+      "/api/pricing/cursor": {
+        get: {
+          tags: ["Pricing"],
+          summary: "List Cursor pricing rules",
+          operationId: "listCursorPricingRules",
+          responses: {
+            200: {
+              description: "Cursor pricing rules",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/CursorPricingListResponse" },
+                },
+              },
+            },
+          },
+        },
+        put: {
+          tags: ["Pricing"],
+          summary: "Create or update a Cursor pricing rule",
+          operationId: "upsertCursorPricingRule",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CursorPricingUpsertRequest" },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Cursor pricing rule stored",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/CursorPricingUpsertResponse" },
+                },
+              },
+            },
+            400: {
+              description: "Invalid request body",
+              content: {
+                "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+              },
+            },
+          },
+        },
+      },
+      "/api/pricing/cursor/{pattern}": {
+        delete: {
+          tags: ["Pricing"],
+          summary: "Delete a Cursor pricing rule",
+          operationId: "deleteCursorPricingRule",
+          parameters: [{ $ref: "#/components/parameters/PatternPath" }],
+          responses: {
+            200: {
+              description: "Rule deleted",
+              content: {
+                "application/json": { schema: { $ref: "#/components/schemas/DeleteOkResponse" } },
+              },
+            },
+            404: {
+              description: "Rule not found",
+              content: {
+                "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+              },
+            },
+          },
+        },
+      },
       "/api/pricing/gpt/{pattern}": {
         delete: {
           tags: ["Pricing"],
@@ -2840,7 +2966,7 @@ function createOpenApiSpec() {
                 schema: {
                   type: "object",
                   properties: {
-                    provider: { type: "string", enum: ["claude", "codex"] },
+                    provider: { type: "string", enum: ["claude", "cursor", "codex"] },
                   },
                 },
               },

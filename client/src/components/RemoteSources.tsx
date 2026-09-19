@@ -341,7 +341,7 @@ export function RemoteSources() {
       <p className="text-[11px] text-gray-600 italic mb-4 leading-snug">
         {t(
           "cursorPathsNote",
-          "Informational: Cursor sessions count here too — Cursor happens to use the same ~/.claude paths as Claude Code (locally and on synced remotes)."
+          "Cursor is included with the Claude Code dashboard scope. Local history is discovered and snapshotted from ~/.cursor automatically; remote Cursor folders are not synced by Claude-only SSH imports."
         )}
       </p>
 

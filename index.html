@@ -8,14 +8,14 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Claude Code Agent Monitor - Real-Time Dashboard for Claude Code</title>
+    <title>Agent Monitor for Claude Code, Cursor & Codex</title>
     <meta
       name="description"
-      content="Real-time local dashboard for Claude Code: sessions, kanban, analytics, cost tracking, run / resume Claude from your browser, and a 12-tab inspector for every plugin, skill, hook, and setting."
+      content="Real-time local dashboard for Claude Code, Cursor, and Codex: sessions, conversations, agents, analytics, model pricing, and durable Cursor history."
     />
     <meta
       name="keywords"
-      content="Claude Code, dashboard, agent monitor, real-time, MCP, plugin marketplace, hooks, sessions, analytics, workflow visualization, cost tracking, Run Claude, claude config explorer"
+      content="Claude Code, Cursor, Codex, dashboard, agent monitor, real-time, MCP, hooks, conversation history, analytics, workflow visualization, model pricing"
     />
     <meta name="author" content="Son Nguyen" />
     <meta name="robots" content="index, follow" />
@@ -24,10 +24,10 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Claude Code Agent Monitor" />
-    <meta property="og:title" content="Claude Code Agent Monitor - Real-Time Dashboard for Claude Code" />
+    <meta property="og:title" content="Agent Monitor for Claude Code, Cursor & Codex" />
     <meta
       property="og:description"
-      content="Real-time local dashboard for Claude Code with sessions, analytics, workflows, plugin marketplace, MCP server, in-browser Run page, and a 12-tab Claude Config Explorer."
+      content="Real-time local monitoring for Claude Code, Cursor, and Codex with conversations, analytics, workflows, provider pricing, and durable history."
     />
     <meta property="og:image" content="og-image.svg" />
     <meta property="og:image:width" content="1200" />
@@ -40,7 +40,7 @@
     <meta name="twitter:title" content="Claude Code Agent Monitor" />
     <meta
       name="twitter:description"
-      content="Real-time local dashboard for Claude Code with 13 pages, plugin marketplace, MCP server, VS Code extension, in-browser Run page and 12-tab Config Explorer."
+      content="Real-time local dashboard for Claude Code, Cursor, and Codex with sessions, conversations, model pricing, workflows, and MCP tooling."
     />
     <meta name="twitter:image" content="og-image.svg" />
     <meta name="twitter:creator" content="@hoangsonww" />
@@ -51,10 +51,10 @@
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "Claude Code Agent Monitor",
-        "description": "Real-time local dashboard for Claude Code with sessions, analytics, workflows, plugin marketplace, MCP server, in-browser Run page for spawning Claude subprocesses, and a 12-tab Claude Config Explorer.",
+        "description": "Real-time local dashboard for Claude Code, Cursor, and Codex with durable conversations, analytics, workflows, provider pricing, and MCP tooling.",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Windows, macOS, Linux",
-        "softwareVersion": "1.0.0",
+        "softwareVersion": "2.2.2",
         "license": "https://opensource.org/licenses/MIT",
         "author": {
           "@type": "Person",
@@ -2218,7 +2218,7 @@
       <div class="nav-inner">
         <a href="#" class="brand">
           <span class="brand-mark">CC</span>
-          <span>Claude Code & Codex Agent Monitor</span>
+          <span>Claude Code, Cursor & Codex Agent Monitor</span>
         </a>
         <nav class="nav-links" aria-label="Primary">
           <a href="#values" data-section="values" class="nav-link">Why</a>
@@ -2329,12 +2329,12 @@
           <div class="badge">100% local · zero telemetry · real-time everything</div>
         </div>
         <h1 class="reveal">
-          Real-time control plane for&nbsp;<span class="accent">Claude&nbsp;Code</span>.
+          Real-time control plane for&nbsp;<span class="accent">Claude&nbsp;Code, Cursor &amp; Codex</span>.
         </h1>
         <p class="reveal">
-          A local-first dashboard that tracks every Claude Code session, agent, and tool call as it
-          happens - and now spawns new ones for you. Sessions, kanban, analytics, workflows, MCP,
-          plugin marketplace, and a 12-tab Config Explorer for everything Claude Code knows about.
+          A local-first dashboard that tracks Claude Code, Cursor, and Codex sessions, agents,
+          conversations, tool calls, and model cost as they happen. Cursor monitoring is included
+          with the Claude option and its history is snapshotted before the editor cleans it up.
         </p>
         <div class="hero-ctas reveal">
           <a href="#install" class="btn btn-primary">
@@ -2792,13 +2792,23 @@
             <div class="feature-icon rose">🪝</div>
             <h3>Hooks-driven capture</h3>
             <p>
-              Auto-installs into Claude Code and Codex hook settings. Claude Code creates a session
+              Auto-installs into Claude Code and Codex hook settings; compatible Cursor events are
+              recognized from their native transcript paths. Claude Code creates a session
               at <code>SessionStart</code>; Codex shows an in-memory card as soon as its interactive
               TUI process starts, then hands off to its hook, live-thread row, rollout, or selected
               Resume thread without persisting the temporary card or waiting for a new message.
               SessionStart, PreToolUse,
               PostToolUse, Stop, SubagentStop, Notification - every event lands in SQLite within
               milliseconds.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon emerald">▣</div>
+            <h3>Cursor, out of the box</h3>
+            <p>
+              Discovers <code>~/.cursor</code> sessions, backfills titles, projects, prompts, turns,
+              and subagents, snapshots conversation JSONL, and applies a dedicated editable Cursor
+              rate card for Grok, Composer, and routed third-party models.
             </p>
           </div>
           <div class="feature-card">
@@ -2885,8 +2895,8 @@
             <div class="feature-icon emerald">📥</div>
             <h3>History import</h3>
             <p>
-              Rescan Claude Code or Codex, import a directory, or drop a transcript archive.
-              Idempotent imports report progress live.
+              Rescan Claude Code, Cursor, or Codex history. Cursor is discovered and snapshotted
+              automatically; manual provider imports remain idempotent and report progress live.
             </p>
           </div>
           <div class="feature-card">
@@ -3237,7 +3247,7 @@
               <span class="showcase-expand-icon">⤢</span>
               <div class="showcase-overlay">
                 <h4>Settings</h4>
-                <p>Claude and Codex pricing, provider-scoped data, live-configurable session homes, selection-aware first-run hook readiness, and real-time lifecycle states that keep active, waiting, and completed cards accurate — including compact two-request task history for either provider</p>
+                <p>Separate Claude, Cursor, and Codex pricing, provider-scoped data, live session paths, selection-aware first-run readiness, and accurate active, waiting, and completed cards — including native Cursor subtitles and durable conversation history.</p>
               </div>
             </div>
           </div>

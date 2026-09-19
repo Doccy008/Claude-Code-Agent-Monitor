@@ -44,11 +44,13 @@ Enterprise-grade Node.js backend for Claude Code agent monitoring with real-time
 
 The server is a lightweight Express application that:
 
-1. **Receives hook events** from Claude Code via HTTP POST (stdin → hook-handler.js → server)
+1. **Receives hook events** from Claude Code, compatible Cursor sessions, and Codex via HTTP POST
 2. **Persists data** in SQLite database with schema migrations
 3. **Broadcasts updates** to connected web clients via WebSocket
 4. **Serves REST API** for sessions, agents, events, stats, analytics, pricing, workflows, settings, and docs
-5. **Manages pricing rules** for cost calculation and attribution
+5. **Manages isolated Claude, Cursor, and Codex pricing rules** for cost calculation and attribution
+
+Cursor history is native rather than an alias for Claude storage. `lib/cursor-home.js` resolves `~/.cursor`, while `lib/cursor-ingest.js` continuously discovers agent transcripts, joins chat titles/cwd/prompt history, backfills existing rows, imports subagents, and copies durable transcript snapshots into the dashboard data directory. `routes/sessions.js` parses Cursor's `role/message.content` JSONL directly for the Conversation tab. `DASHBOARD_CURSOR_HOME` overrides the root; `DASHBOARD_CURSOR_SYNC_MS` controls the periodic safety scan.
 
 ```mermaid
 graph TB
@@ -643,7 +645,7 @@ Codex accounting keeps fresh input, cached input, cache writes, output, and reas
 
 Live remote/multi-machine data collection over SSH. `server/lib/remote-sync.js` independently mirrors a source's Claude Code tree (`~/.claude/projects`) and Codex tree (`~/.codex/sessions` plus the lightweight native `session_index.jsonl` title index) into isolated staging dirs. Each uses its normal local importer — `importFromDirectory` for Claude and `importCodexFromDirectory` for Codex — then tags imported sessions with `sessions.source`. A source can be Claude-only, Codex-only, or both; either provider can keep the source healthy while provider-specific state preserves correct lifecycle fallback. Authentication defers entirely to the host SSH stack (ssh-agent / `~/.ssh/config` / identity file) — **no secrets are stored**; every command runs via `execFile`/`spawn` argument arrays (never a shell string) and `StrictHostKeyChecking` is left at its SSH default.
 
-> **Cursor on remotes (informational):** The same note applies on synced machines — if Cursor on a remote host writes to `~/.claude`, those sessions are imported too. CCAM reads the paths, not the app name.
+> **Cursor on remotes:** SSH sources currently mirror Claude Code and Codex homes only. Cursor's native `~/.cursor` tree is not pulled by this subsystem; mount or otherwise expose that tree locally and point `DASHBOARD_CURSOR_HOME` at it when remote Cursor history is required.
 
 | Method   | Path                          | Description |
 | -------- | ----------------------------- | ----------- |
@@ -1595,6 +1597,8 @@ DASHBOARD_DB_PATH=./data/dashboard.db  # SQLite database path
 
 # Background services
 DASHBOARD_SESSION_SYNC_MS=30000    # Continuous project-sync poll interval (ms); 0 disables the poll (watcher stays)
+DASHBOARD_CURSOR_HOME=             # Optional Cursor home; defaults to ~/.cursor for native history and chat metadata
+DASHBOARD_CURSOR_SYNC_MS=5000      # Fingerprinted Cursor history safety-net poll (ms); 0 disables periodic discovery
 DASHBOARD_CODEX_HOME=              # Optional Codex home; Settings saves this dashboard-only override and immediately re-arms live watching
 DASHBOARD_CODEX_SYNC_MS=4000       # Codex rollout safety-net poll (ms); 0 disables poll (watcher stays)
 DASHBOARD_CODEX_MAX_ATTEMPTS=5     # Consecutive failed ingest attempts per unchanged rollout, including the first attempt

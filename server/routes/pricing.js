@@ -1,5 +1,7 @@
 /**
- * @file Express router for managing pricing rules and calculating costs based on token usage. It provides endpoints to list, create/update, and delete pricing rules, as well as calculate total costs across all sessions or for a specific session. The cost calculation matches token usage against the most specific applicable pricing rule based on model patterns.
+ * @file Express router for managing Claude, Cursor, and Codex pricing rules and
+ * calculating provider-correct costs from token usage. Each provider's rate
+ * card remains isolated and uses its own published cache/speed dimensions.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -24,7 +26,7 @@ function matchesModelPattern(pattern, model) {
   const expression = String(pattern || "")
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     .replace(/%/g, ".*");
-  return new RegExp(`^${expression}$`).test(String(model || ""));
+  return new RegExp(`^${expression}$`, "i").test(String(model || ""));
 }
 
 /**
@@ -307,22 +309,103 @@ function calculateGptCost(tokenRows, pricingRules) {
   };
 }
 
-/** Combine Claude and Codex accounting without ever applying one provider's rate card to the other. */
-function calculateProviderCost(tokenRows, claudePricingRules, gptPricingRules, asOf) {
-  const claudeRows = tokenRows.filter((row) => row.provider !== "codex");
-  const codexRows = tokenRows.filter((row) => row.provider === "codex");
-  const claude = calculateCost(claudeRows, claudePricingRules, asOf);
-  const codex = calculateGptCost(codexRows, gptPricingRules);
-
+/** Calculate Cursor usage against Cursor's four-column public model rate card. */
+function calculateCursorCost(tokenRows, pricingRules) {
+  const sortedRules = [...pricingRules].sort(
+    (a, b) => b.model_pattern.length - a.model_pattern.length
+  );
+  const breakdown = [];
+  const unpriced = [];
+  let total = 0;
+  for (const row of tokenRows) {
+    const model = String(row.model || "unknown");
+    const candidates = row.speed === "fast" ? [`${model}-fast`, model] : [model];
+    const rule = sortedRules.find((candidate) =>
+      candidates.some((value) => matchesModelPattern(candidate.model_pattern, value))
+    );
+    const input = Number(row.input_tokens) || 0;
+    const output = Number(row.output_tokens) || 0;
+    const cacheRead = Number(row.cache_read_tokens) || 0;
+    const cacheWrite = Number(row.cache_write_tokens) || 0;
+    const cost = rule
+      ? (input / 1e6) * rule.input_per_mtok +
+        (cacheWrite / 1e6) * rule.cache_write_per_mtok +
+        (cacheRead / 1e6) * rule.cache_read_per_mtok +
+        (output / 1e6) * rule.output_per_mtok
+      : 0;
+    total += cost;
+    const item = {
+      provider: "cursor",
+      model,
+      speed: row.speed || "standard",
+      input_tokens: input,
+      output_tokens: output,
+      cache_read_tokens: cacheRead,
+      cache_write_tokens: cacheWrite,
+      cache_write_1h_tokens: 0,
+      web_search_requests: 0,
+      web_fetch_requests: 0,
+      code_execution_requests: 0,
+      matched_rule: rule?.model_pattern || null,
+      cost: round4(cost),
+    };
+    breakdown.push(item);
+    if (!rule) {
+      unpriced.push({
+        model,
+        speed: row.speed || "standard",
+        reason: "No Cursor pricing rule matches this model",
+        input_tokens: input,
+        output_tokens: output,
+        cache_read_tokens: cacheRead,
+        cache_write_tokens: cacheWrite,
+      });
+    }
+  }
   return {
-    total_cost: round4(claude.total_cost + codex.total_cost),
-    breakdown: [...claude.breakdown, ...codex.breakdown],
-    feature_costs: claude.feature_costs,
-    unpriced_models: [...claude.unpriced_models, ...codex.unpriced_models],
+    total_cost: round4(total),
+    breakdown,
+    feature_costs: {
+      web_search_cost: 0,
+      web_fetch_cost: 0,
+      code_execution_cost: 0,
+      code_execution_hours_estimated: 0,
+      code_execution_free_hours: CODE_EXEC_FREE_HOURS,
+    },
+    unpriced_models: unpriced,
   };
 }
 
-function calculateDailyCosts(dailyTokenRows, pricingRules, gptPricingRules) {
+/** Combine provider accounting without ever applying one provider's rate card to another. */
+function calculateProviderCost(
+  tokenRows,
+  claudePricingRules,
+  gptPricingRules,
+  cursorPricingRules = [],
+  asOf
+) {
+  const claudeRows = tokenRows.filter(
+    (row) => row.provider !== "codex" && row.provider !== "cursor"
+  );
+  const codexRows = tokenRows.filter((row) => row.provider === "codex");
+  const cursorRows = tokenRows.filter((row) => row.provider === "cursor");
+  const claude = calculateCost(claudeRows, claudePricingRules, asOf);
+  const codex = calculateGptCost(codexRows, gptPricingRules);
+  const cursor = calculateCursorCost(cursorRows, cursorPricingRules);
+
+  return {
+    total_cost: round4(claude.total_cost + cursor.total_cost + codex.total_cost),
+    breakdown: [...claude.breakdown, ...cursor.breakdown, ...codex.breakdown],
+    feature_costs: claude.feature_costs,
+    unpriced_models: [
+      ...claude.unpriced_models,
+      ...cursor.unpriced_models,
+      ...codex.unpriced_models,
+    ],
+  };
+}
+
+function calculateDailyCosts(dailyTokenRows, pricingRules, gptPricingRules, cursorPricingRules) {
   const rowsByDate = new Map();
   for (const row of dailyTokenRows) {
     const rows = rowsByDate.get(row.date) || [];
@@ -349,7 +432,8 @@ function calculateDailyCosts(dailyTokenRows, pricingRules, gptPricingRules) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, rows]) => ({
       date,
-      cost: calculateProviderCost(rows, pricingRules, gptPricingRules, date).total_cost,
+      cost: calculateProviderCost(rows, pricingRules, gptPricingRules, cursorPricingRules, date)
+        .total_cost,
     }));
 }
 
@@ -357,6 +441,52 @@ function calculateDailyCosts(dailyTokenRows, pricingRules, gptPricingRules) {
 router.get("/", (_req, res) => {
   const rules = stmts.listPricing.all();
   res.json({ pricing: rules });
+});
+
+// Cursor's rate card is deliberately independent from Claude and Codex.
+router.get("/cursor", (_req, res) => {
+  res.json({ pricing: stmts.listCursorPricing.all() });
+});
+
+router.put("/cursor", (req, res) => {
+  const { model_pattern, display_name } = req.body;
+  if (!model_pattern || !display_name) {
+    return res.status(400).json({
+      error: { code: "INVALID_INPUT", message: "model_pattern and display_name are required" },
+    });
+  }
+  const fields = [
+    "input_per_mtok",
+    "cache_write_per_mtok",
+    "cache_read_per_mtok",
+    "output_per_mtok",
+  ];
+  const values = fields.map((field) => {
+    const raw = req.body[field];
+    return raw === undefined || raw === null || raw === "" ? 0 : Number(raw);
+  });
+  const invalid = values.findIndex((value) => !Number.isFinite(value) || value < 0);
+  if (invalid !== -1) {
+    return res.status(400).json({
+      error: {
+        code: "INVALID_INPUT",
+        message: `${fields[invalid]} must be a non-negative number`,
+      },
+    });
+  }
+  stmts.upsertCursorPricing.run(model_pattern, display_name, ...values);
+  return res.json({ pricing: stmts.getCursorPricing.get(model_pattern) });
+});
+
+router.delete("/cursor/:pattern", (req, res) => {
+  const pattern = req.params.pattern;
+  if (!stmts.getCursorPricing.get(pattern)) {
+    return res
+      .status(404)
+      .json({ error: { code: "NOT_FOUND", message: "Cursor pricing rule not found" } });
+  }
+  stmts.deleteCursorPricing.run(pattern);
+  return res.json({ ok: true });
 });
 
 // PUT /api/pricing - Create or update a pricing rule
@@ -610,12 +740,13 @@ router.get("/cost", (req, res) => {
     .all(tzModifier, ...params);
   const rules = stmts.listPricing.all();
   const gptRules = stmts.listGptPricing.all();
+  const cursorRules = stmts.listCursorPricing.all();
   // Price the date-split rows so each day's usage bills at the rate effective on
   // that date (e.g. Sonnet 5's intro discount before 2026-08-31, standard after).
   // Coverage equals the undated aggregate — token_usage cascades with sessions,
   // so the INNER JOIN drops nothing — and the breakdown re-collapses per model.
-  const result = calculateProviderCost(dailyTokens, rules, gptRules);
-  const daily_costs = calculateDailyCosts(dailyTokens, rules, gptRules);
+  const result = calculateProviderCost(dailyTokens, rules, gptRules, cursorRules);
+  const daily_costs = calculateDailyCosts(dailyTokens, rules, gptRules, cursorRules);
   res.json({ ...result, daily_costs });
 });
 
@@ -643,9 +774,10 @@ router.get("/cost/:sessionId", (req, res) => {
     .map((row) => ({ ...row, provider: session.provider || "claude" }));
   const rules = stmts.listPricing.all();
   const gptRules = stmts.listGptPricing.all();
+  const cursorRules = stmts.listCursorPricing.all();
   // Price the session as of its start date so a session that ran during a promo
   // window keeps that rate (e.g. Sonnet 5 intro through 2026-08-31).
-  const result = calculateProviderCost(tokenRows, rules, gptRules, session.date);
+  const result = calculateProviderCost(tokenRows, rules, gptRules, cursorRules, session.date);
   const daily_costs = session ? [{ date: session.date, cost: result.total_cost }] : [];
   res.json({ ...result, daily_costs });
 });
@@ -687,6 +819,7 @@ function attachAgentCosts(agents) {
 module.exports = router;
 module.exports.calculateCost = calculateCost;
 module.exports.calculateGptCost = calculateGptCost;
+module.exports.calculateCursorCost = calculateCursorCost;
 module.exports.calculateProviderCost = calculateProviderCost;
 module.exports.agentOwnCost = agentOwnCost;
 module.exports.attachAgentCosts = attachAgentCosts;

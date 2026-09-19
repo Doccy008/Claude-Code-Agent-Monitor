@@ -171,11 +171,11 @@ graph LR
 
 ### sessions
 
-Tracks Claude Code and Codex sessions (one per CLI invocation or background task). Schema mirrors `server/db.js`.
+Tracks Claude Code, Cursor, and Codex sessions (one per CLI invocation or background task). Schema mirrors `server/db.js`.
 
 Session rows also retain optional `repo_remote_url` metadata: the first sanitized remote supplied by a collector wins. URL userinfo, query strings, and fragments are removed; malformed URLs are discarded before session or event persistence.
 
-> **Cursor (informational):** Rows imported from `~/.claude` JSONL transcripts may also represent **Cursor** agent sessions — Cursor happens to use the same on-disk layout as Claude Code. The schema does not record which app created a session.
+> **Cursor:** Native rows discovered from `~/.cursor/projects/*/agent-transcripts` are stored with `provider = 'cursor'`. Their live path and dashboard-owned snapshot remain separately resolvable, so conversation history survives source cleanup and pricing uses only the Cursor rate card.
 
 ```sql
 CREATE TABLE sessions (
@@ -449,6 +449,26 @@ Standard rates and intro rates are edited independently: the pricing update path
 | Pattern | Input | Output | Intro Input | Intro Output | Intro Until |
 |---------|-------|--------|-------------|--------------|-------------|
 | `claude-sonnet-5%` | $2.00 | $10.00 | $2.00 | $10.00 | `2026-08-31` |
+
+---
+
+### cursor_model_pricing
+
+Dedicated Cursor rate card for sessions stored with `provider = 'cursor'`. Keeping it separate prevents Cursor-native and routed third-party models from accidentally matching Anthropic or OpenAI/Codex rules.
+
+```sql
+CREATE TABLE cursor_model_pricing (
+    model_pattern TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    input_per_mtok REAL NOT NULL DEFAULT 0,
+    cache_write_per_mtok REAL NOT NULL DEFAULT 0,
+    cache_read_per_mtok REAL NOT NULL DEFAULT 0,
+    output_per_mtok REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+```
+
+Defaults mirror Cursor's published four-column USD-per-million-token card for Cursor Grok 4.6/4.5, Composer 2.5, and the supported Anthropic, Google, Z.ai, OpenAI, Moonshot, and Meta models. Fast Cursor models have more-specific patterns; `speed = 'fast'` also tries the corresponding `-fast` pattern. Rows are editable through Settings and `/api/pricing/cursor`, and are included in export/restore bundles beginning with bundle version 3.
 
 ---
 

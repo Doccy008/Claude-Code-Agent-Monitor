@@ -11,7 +11,7 @@
  *   • Complete — the bundle carries every table that holds user-owned captured
  *     data or portable configuration: sessions, agents, events, token_usage,
  *     workflows, dashboard_runs, alert_rules, model_pricing, and the separate
- *     gpt_model_pricing Codex rate card. Machine-bound or secret-bearing tables
+ *     Cursor/Codex rate cards. Machine-bound or secret-bearing tables
  *     (push_subscriptions, webhook_targets/deliveries, alert_events audit log,
  *     Codex rollout cursors) are intentionally excluded.
  *   • Idempotent + non-destructive — restore is session-atomic: a session that
@@ -19,7 +19,7 @@
  *     with its agents/events/token_usage/workflows, so re-importing the same
  *     bundle (or overlapping bundles from two machines) never duplicates rows
  *     or clobbers live data. Independent config rows (dashboard_runs,
- *     alert_rules, model_pricing, gpt_model_pricing) are inserted with INSERT
+ *     alert_rules, model_pricing, cursor_model_pricing, gpt_model_pricing) are inserted with INSERT
  *     OR IGNORE on their natural primary key.
  *   • Accurate — token_usage (including compaction baselines) is restored
  *     verbatim for every new session, so cost/analytics match the source
@@ -35,8 +35,8 @@
 "use strict";
 
 const EXPORT_FORMAT = "ccam-export";
-// v2 adds the independent GPT/Codex rate card while keeping v1 imports valid.
-const EXPORT_VERSION = 2;
+// v3 adds the independent Cursor rate card while keeping v1/v2 imports valid.
+const EXPORT_VERSION = 3;
 
 // Tables serialized into the bundle. Order matters for restore (parents before
 // children); FK checks are deferred to COMMIT anyway (see importExportBundle).
@@ -63,6 +63,7 @@ function buildExportBundle(db, stmts) {
     dashboard_runs: db.prepare("SELECT * FROM dashboard_runs ORDER BY started_at DESC").all(),
     alert_rules: db.prepare("SELECT * FROM alert_rules ORDER BY created_at ASC").all(),
     model_pricing: stmts.listPricing.all(),
+    cursor_model_pricing: stmts.listCursorPricing.all(),
     gpt_model_pricing: stmts.listGptPricing.all(),
   };
 }
@@ -139,6 +140,7 @@ function assertBundle(bundle) {
     Array.isArray(bundle.model_pricing) ||
     Array.isArray(bundle.alert_rules) ||
     Array.isArray(bundle.dashboard_runs) ||
+    Array.isArray(bundle.cursor_model_pricing) ||
     Array.isArray(bundle.gpt_model_pricing);
   if (!bundle.format && !hasAnyTable) {
     throw new ImportFormatError(
@@ -156,7 +158,8 @@ function assertBundle(bundle) {
  * @param {object} bundle - parsed export JSON.
  * @returns {{sessions_imported:number, sessions_skipped:number, agents:number,
  *   events:number, token_usage:number, workflows:number, dashboard_runs:number,
- *   alert_rules:number, model_pricing:number, gpt_model_pricing:number,
+ *   alert_rules:number, model_pricing:number, cursor_model_pricing:number,
+ *   gpt_model_pricing:number,
  *   errors:number}}
  */
 function importExportBundle(db, bundle) {
@@ -172,6 +175,7 @@ function importExportBundle(db, bundle) {
     dashboard_runs: 0,
     alert_rules: 0,
     model_pricing: 0,
+    cursor_model_pricing: 0,
     gpt_model_pricing: 0,
     errors: 0,
   };
@@ -187,6 +191,7 @@ function importExportBundle(db, bundle) {
     dashboard_runs: makeInserter(db, "dashboard_runs"),
     alert_rules: makeInserter(db, "alert_rules"),
     model_pricing: makeInserter(db, "model_pricing"),
+    cursor_model_pricing: makeInserter(db, "cursor_model_pricing"),
     gpt_model_pricing: makeInserter(db, "gpt_model_pricing"),
   };
 
@@ -249,6 +254,11 @@ function importExportBundle(db, bundle) {
     for (const p of Array.isArray(bundle.gpt_model_pricing) ? bundle.gpt_model_pricing : []) {
       if (p && p.model_pattern && insert.gpt_model_pricing(p).changes > 0) {
         counters.gpt_model_pricing++;
+      }
+    }
+    for (const p of Array.isArray(bundle.cursor_model_pricing) ? bundle.cursor_model_pricing : []) {
+      if (p && p.model_pattern && insert.cursor_model_pricing(p).changes > 0) {
+        counters.cursor_model_pricing++;
       }
     }
   });

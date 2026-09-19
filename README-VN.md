@@ -1,10 +1,11 @@
-# Bảng điều khiển Agent cho Claude Code & Codex
+# Bảng điều khiển Agent cho Claude Code, Cursor & Codex
 
-### Nền tảng giám sát thời gian thực cho hoạt động của Agent Claude Code & Codex 🚀
+### Nền tảng giám sát thời gian thực cho hoạt động Agent Claude Code, Cursor & Codex 🚀
 
-Bảng điều khiển chuyên nghiệp để theo dõi và trực quan hóa các phiên tác nhân Claude Code & Codex, cách sử dụng công cụ và điều phối tác nhân phụ trong thời gian thực. Được xây dựng bằng Node.js, Express, React và SQLite, nó tích hợp trực tiếp với Claude Code & Codex thông qua hệ thống hook gốc để theo dõi và phân tích phiên liền mạch.
+Bảng điều khiển chuyên nghiệp để theo dõi Claude Code, Cursor và Codex: phiên, công cụ, lịch sử hội thoại, chi phí và điều phối agent phụ theo thời gian thực. Hệ thống kết hợp hook gốc với phát hiện transcript cục bộ theo nhà cung cấp.
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-orange?style=flat-square&logo=claude&logoColor=white)
+![Cursor](https://img.shields.io/badge/Cursor-Agent_Monitoring-111827?style=flat-square&logo=cursor&logoColor=white)
 ![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-blue?style=flat-square&logo=githubcopilot&logoColor=white)
 ![Claude Code Plugins](https://img.shields.io/badge/Claude_Code_&_Codex-Plugins_&_Skills-orange?style=flat-square&logo=anthropic&logoColor=white)
 ![Model Context Protocol](https://img.shields.io/badge/Model_Context_Protocol-1.0-0f766e?style=flat-square&logo=modelcontextprotocol&logoColor=white)
@@ -125,6 +126,12 @@ graph LR
     style C fill:#1a1a28,stroke:#2a2a3d,color:#e4e4ed
     style D fill:#10b981,stroke:#34d399,color:#fff
 ```
+
+### Hỗ trợ Cursor
+
+Cursor không cần lựa chọn thiết lập riêng: chọn **Claude Code** trên màn hình chào cũng bật giám sát Cursor ngay. Dashboard quét `~/.cursor/projects/*/agent-transcripts`, ghép metadata từ `~/.cursor/chats` và backfill tiêu đề, dự án, prompt gần nhất, số lượt cùng agent phụ cho các phiên cũ. JSONL của phiên chính và agent phụ được snapshot vào thư mục dữ liệu Dashboard, nên Conversation vẫn hoạt động sau khi Cursor dọn lịch sử gốc.
+
+Thẻ Cursor có tiêu đề `Cursor · <tên>` và phụ đề dự án/lượt/agent phụ. Mục **Giá Cursor** riêng trong Cài đặt bao gồm Grok, Composer và danh mục mô hình bên thứ ba đã công bố, không dùng nhầm giá Claude hay Codex. Có thể đổi thư mục qua `DASHBOARD_CURSOR_HOME` và chu kỳ quét qua `DASHBOARD_CURSOR_SYNC_MS`.
 
 Ngoài bảng thông tin giám sát thời gian thực, nó còn bao gồm triển khai máy chủ MCP cục bộ trong `mcp/` hiển thị danh mục các công cụ để xem xét nội tâm và quản lý bảng thông tin, giúp dễ dàng tích hợp trực tiếp các hoạt động của bảng thông tin vào quy trình làm việc của Claude Code & Codex của bạn. Ngoài ra còn có một lớp mở rộng tác nhân, cung cấp các plugin, kỹ năng và tác nhân phụ của Claude Code & Codex để tương tác trên trang tổng quan, phân tích và thông tin về quy trình làm việc.
 
@@ -305,7 +312,7 @@ Thanh bên cung cấp quyền truy cập nhanh vào cả chín trang — Trang t
 
 Bảng điều khiển cung cấp một bộ tính năng toàn diện để giám sát và phân tích các phiên và Agent Claude Code & Codex của bạn:
 
-> **Phiên Cursor (chỉ mang tính thông tin):** CCAM nhập mọi transcript agent nằm trong `~/.claude` — trên máy này và trên các máy từ xa đã đồng bộ. **Cursor** cũng được tính tương tự: Cursor tình cờ lưu phiên agent ở cùng các đường dẫn với Claude Code & Codex. CCAM không phân biệt ứng dụng nào ghi file.
+> **Cursor được tích hợp sẵn:** CCAM phát hiện lịch sử Cursor gốc từ `~/.cursor/projects/*/agent-transcripts`, bổ sung metadata từ `~/.cursor/chats`, lưu dưới provider `cursor` riêng biệt và tạo snapshot hội thoại trước khi Cursor dọn các tệp nguồn. Cursor tự động được bao gồm khi chọn phạm vi dashboard Claude Code. Nguồn SSH từ xa hiện chỉ đồng bộ thư mục Claude Code và Codex; để nhập Cursor từ xa, hãy mount hoặc đưa thư mục Cursor về máy cục bộ rồi đặt `DASHBOARD_CURSOR_HOME`.
 
 | Tính năng                            | Sự miêu tả                                                                                                                                                                                                                                                                  |
 |------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -643,6 +650,8 @@ flowchart LR
 | `DASHBOARD_LIVENESS_PROBE` | `1` (bật) | Đặt `0` để tắt **cơ chế thu dọn phiên đã chết** của watchdog (probe dựa trên `ps`/`lsof` hoàn tất các phiên local `active` của Claude Code hoặc Codex khi tiến trình CLI tương ứng không còn tồn tại — khôi phục một `SessionEnd` bị mất khi dashboard không chạy). Các phiên được chuyển tiếp từ **máy khác** (household hooks) báo cáo `cwd` không phải POSIX và được cơ chế thu dọn tự động bỏ qua, nên một triển khai hỗn hợp cục bộ + chuyển tiếp không còn cần tắt tùy chọn này; chỉ tắt nó cho cấu hình thuần từ xa nơi tiến trình cục bộ không chứng minh được gì. Tự động tắt trên Windows và trong container |
 | `DASHBOARD_LIVENESS_IDLE_SECONDS` | `60` | Ngưỡng nhàn rỗi cho cơ chế thu dọn **ở nhịp watchdog**: phiên chỉ bị hoàn tất khi transcript của nó không được ghi trong ít nhất khoảng này (lần ghi hook cuối là đồng hồ dự phòng khi không có transcript trên đĩa), nên phiên đang giữa lượt hoặc vừa resume không bao giờ biến mất do một lần probe trượt thoáng qua. Các lượt thu dọn lúc khởi động bỏ qua ngưỡng này — lúc boot chỉ probe quyết định, nên phiên thoát ngay trước khi mở app được dọn tức thì |
 | `DASHBOARD_SESSION_SYNC_MS` | `30000` | Khoảng poll (ms) cho tiến trình đồng bộ nền `~/.claude/projects` liên tục, làm hiện ra các dự án được thêm sau khi khởi động mà các phiên của chúng không bao giờ đi qua hook. Watcher `fs.watch` vẫn kích hoạt gần như tức thì bất kể giá trị này; lần poll này là lưới an toàn (watcher có thể bỏ lỡ sự kiện / không kích hoạt trên hệ thống tệp mạng). Đặt thành `0` để tắt poll mà vẫn giữ watcher chạy |
+| `DASHBOARD_CURSOR_HOME` | `~/.cursor` | Thư mục Cursor gốc tùy chọn. Dashboard đọc `projects/*/agent-transcripts`, ghép metadata từ `chats`, backfill phiên hiện có và lưu snapshot hội thoại bền vững trong thư mục dữ liệu Dashboard. |
+| `DASHBOARD_CURSOR_SYNC_MS` | `5000` | Khoảng quét an toàn (ms) cho việc phát hiện lịch sử Cursor theo fingerprint. Hook tương thích vẫn được ingest ngay; đặt `0` để tắt quét định kỳ. |
 | `DASHBOARD_CODEX_HOME` | `CODEX_HOME` hoặc `~/.codex` | Thư mục trạng thái Codex cục bộ tùy chọn. Lưu vị trí mới trong Cài đặt sẽ duy trì override chỉ dành cho dashboard này, kích hoạt lại theo dõi trực tiếp và quét ngay cây `sessions/` mới. |
 | `DASHBOARD_CODEX_SYNC_MS` | `4000` | Khoảng poll an toàn (ms) cho rollout Codex chỉ-ghi-nối thêm. Hook Codex kích hoạt cùng bộ nạp tăng dần ngay lập tức; đặt `0` để chỉ tắt poll và vẫn giữ watcher hệ thống tệp khi có thể. |
 | `DASHBOARD_CODEX_MAX_ATTEMPTS` | `5` | Số lần ingest thất bại liên tiếp mà vòng quét Codex dành cho một rollout **không thay đổi** trước khi bỏ qua nó. Vòng quét cố tình xếp lại hàng đợi một rollout nó không đọc được để lỗi tạm thời (`SQLITE_BUSY`, một record viết dở) phục hồi ở lượt sau; nếu không giới hạn, một lỗi *vĩnh viễn* sẽ lặp lại suốt vòng đời tiến trình — khoảng 21.600 lần mỗi file mỗi ngày ở mức mặc định 4 giây của `DASHBOARD_CODEX_SYNC_MS`, mỗi lần ghi một dòng log trên luồng Node duy nhất. Bộ đếm bao gồm cả lần thử đầu tiên, tính riêng theo từng file, và được khôi phục đầy đủ mỗi khi size hoặc mtime của file thay đổi, nên một rollout chỉ mới viết dở vẫn tự phục hồi. Lần thử tiêu hết ngân sách ghi log đúng một lần, nêu rõ giới hạn. Tăng giá trị này nếu một volume chậm hoặc chập chờn cần nhiều hơn vài lượt quét để ổn định |

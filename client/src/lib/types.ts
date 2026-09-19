@@ -704,7 +704,7 @@ export interface Session {
   source?: string;
   /** Product that created this session. Historical records default to Claude;
    *  Codex rollouts are marked `codex` and use the GPT price card. */
-  provider?: "claude" | "codex";
+  provider?: "claude" | "cursor" | "codex";
   /** Compact latest task progress attached to Sessions-list rows. Null when the
    * provider never emitted task/checklist/plan state. */
   todo_summary?: SessionTodoSummary | null;
@@ -1138,6 +1138,17 @@ export interface GptModelPricing {
   fast_cached_input_per_mtok: number;
   fast_cache_write_per_mtok: number;
   fast_output_per_mtok: number;
+  updated_at: string;
+}
+
+/** An editable Cursor rate-card row. All rates are USD per million tokens. */
+export interface CursorModelPricing {
+  model_pattern: string;
+  display_name: string;
+  input_per_mtok: number;
+  cache_write_per_mtok: number;
+  cache_read_per_mtok: number;
+  output_per_mtok: number;
   updated_at: string;
 }
 

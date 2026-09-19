@@ -8,6 +8,8 @@ CCAM supports three production paths:
 
 The persistence contract is the same everywhere: **one active dashboard writer per SQLite volume**. CCAM does not support HPA, active-active replicas, blue-green, or canary deployments while SQLite is the database. Nginx, Prometheus, Grafana, and MCP can run around the dashboard, but the dashboard itself remains one Recreate-managed writer.
 
+Cursor discovery is local-filesystem based. A host deployment reads `${DASHBOARD_CURSOR_HOME:-~/.cursor}` automatically. Containers do not see the workstation's Cursor history unless that directory is mounted read-only and `DASHBOARD_CURSOR_HOME` points at the mount. Durable Cursor snapshots live inside the normal dashboard data volume, so they follow the same backup/restore contract as `dashboard.db`.
+
 ## Production topology
 
 ```mermaid
@@ -201,7 +203,7 @@ Render and replace the local image name with an immutable registry reference:
 REGISTRY="ghcr.io/$(gh repo view --json owner -q .owner.login)"
 IMAGE_TAG="$(git rev-parse --short HEAD)"
 kubectl kustomize deployments/kubernetes/overlays/production \
-  | sed "s|ccam-dashboard:2.2.1|${REGISTRY}/claude-code-agent-monitor:${IMAGE_TAG}|g" \
+  | sed "s|ccam-dashboard:2.2.2|${REGISTRY}/claude-code-agent-monitor:${IMAGE_TAG}|g" \
   | kubectl apply --server-side --field-manager=ccam-deployer -f -
 ```
 

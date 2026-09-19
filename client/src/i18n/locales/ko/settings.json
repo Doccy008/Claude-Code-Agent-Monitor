@@ -32,6 +32,7 @@
   "pricing": {
     "title": "Anthropic Claude 모델 가격 정책",
     "navClaude": "Claude 가격",
+    "navCursor": "Cursor 가격",
     "navGpt": "Codex 가격",
     "description": "백만 토큰당 Anthropic API 요금(USD)입니다. 패턴에서는 %를 와일드카드로 사용하세요. 일부 모델은 기간 한정 도입 요금(보라색으로 표시)이 있으며, 마감일 이전 사용량은 해당 요금으로, 이후 사용량은 표준 요금으로 청구됩니다.",
     "introNote": "도입가 ${{input}}/${{output}}, {{until}}까지",
@@ -63,6 +64,29 @@
     "cacheWrite1h": "캐시 쓰기(1시간)",
     "fastInput": "Fast 입력",
     "fastOutput": "Fast 출력",
+    "cursor": {
+      "title": "Cursor 모델 가격 정책",
+      "description": "Cursor 자체 모델과 라우팅된 타사 모델의 공개 요금입니다. 토큰 100만 개당 USD이며 가장 구체적인 패턴이 우선합니다.",
+      "source": "Cursor 모델 및 가격 보기 ↗",
+      "planNote": "추정치는 Cursor의 토큰별 요금표를 사용합니다. 포함 사용량 풀, 요금제 한도, Auto 라우팅 및 Teams 토큰 요금으로 실제 구독 비용은 달라질 수 있습니다.",
+      "name": "이름",
+      "input": "입력",
+      "write": "캐시 쓰기",
+      "cached": "캐시 읽기",
+      "output": "출력",
+      "deleteConfirm": "이 Cursor 가격 규칙을 삭제할까요?",
+      "tooltip": {
+        "title": "Cursor 가격 산정 방식",
+        "howItWorks": "작동 방식",
+        "howItWorksBody": "Cursor 세션 사용량은 이 Cursor 요금표로만 계산됩니다. 입력, 캐시 쓰기, 캐시 읽기, 출력 토큰을 각각 토큰 100만 개당 USD로 계산합니다.",
+        "patternsTitle": "패턴 문법",
+        "patternsBody": "패턴은 SQL 스타일의 % 와일드카드를 사용합니다. 더 구체적인 패턴이 우선하므로 Fast 또는 버전 지정 모델이 넓은 제품군 규칙을 안전하게 덮어쓸 수 있습니다.",
+        "manualUpdates": "가격은 수동으로 업데이트해야 합니다",
+        "manualUpdatesBody": "Cursor는 웹사이트에 모델 가격 변경을 게시하며 실시간 피드는 없습니다. 모델 이름이나 요금이 바뀌면 규칙을 추가하거나 수정하세요.",
+        "apiPricing": "요금제 청구는 다를 수 있습니다",
+        "apiPricingBody": "요금표는 토큰 가치를 추정합니다. 월간 포함 사용량, 추가 사용량, Auto 라우팅, Teams/Enterprise 청구 규칙은 대시보드에서 재구성하지 않습니다."
+      }
+    },
     "gpt": {
       "title": "OpenAI GPT 모델 가격 정책",
       "description": "Codex 사용을 위한 공개 OpenAI API 요금입니다. 표준 요청은 입력 토큰이 272K 이하일 때 Short, 초과일 때 Long 요율을 사용하며 Fast 모드는 Short와 Long 요율을 각각 제공합니다. 토큰 100만 개당 USD입니다.",
@@ -117,9 +141,9 @@
     "claude": "Claude Code",
     "codex": "Codex",
     "both": "둘 다",
-    "claudeDescription": "Claude Code 데이터만 표시합니다.",
+    "claudeDescription": "Claude Code 및 Cursor 데이터를 표시합니다.",
     "codexDescription": "Codex 데이터만 표시합니다.",
-    "bothDescription": "Claude Code와 Codex 데이터를 함께 표시합니다.",
+    "bothDescription": "Claude Code, Cursor 및 Codex 데이터를 함께 표시합니다.",
     "beta": "베타"
   },
   "hooks": {
@@ -317,7 +341,8 @@
     "agents": "Agent",
     "events": "이벤트",
     "sessionsWithCost": "비용이 있는 세션",
-    "pricingRules": "가격 규칙"
+    "pricingRules": "가격 규칙",
+    "cursorPricingRules": "Cursor 가격 규칙"
   },
   "messages": {
     "failedLoad": "불러오기 실패",
@@ -568,5 +593,5 @@
     "removeKeep": "제거 (데이터 유지)",
     "remoteSourceBadgeTitle": "원격 머신에서 수집됨"
   },
-  "cursorPathsNote": "안내: Cursor 세션도 집계됩니다. Cursor는 Claude Code와 동일한 ~/.claude 경로를 사용합니다(로컬 및 동기화된 원격)."
+  "cursorPathsNote": "Cursor는 Claude Code 대시보드 범위에 포함됩니다. 로컬 기록은 ~/.cursor에서 자동 검색 및 스냅샷되며 Claude 전용 SSH 가져오기는 원격 Cursor 폴더를 동기화하지 않습니다."
 }

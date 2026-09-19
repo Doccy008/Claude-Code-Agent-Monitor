@@ -1,10 +1,11 @@
-# Claude Code & Codex용 에이전트 대시보드
+# Claude Code, Cursor & Codex용 에이전트 대시보드
 
-### Claude Code & Codex 에이전트 활동을 위한 실시간 모니터링 플랫폼 🚀
+### Claude Code, Cursor & Codex 에이전트 활동을 위한 실시간 모니터링 플랫폼 🚀
 
-Claude Code & Codex 에이전트 세션, 도구 사용, 서브에이전트 오케스트레이션을 실시간으로 추적하고 시각화하는 전문 대시보드입니다. Node.js, Express, React, SQLite로 구축되었으며, Claude Code & Codex의 네이티브 Hook 시스템과 직접 통합되어 매끄러운 세션 추적과 분석을 제공합니다.
+Claude Code, Cursor, Codex 에이전트 세션, 도구 사용, 대화 기록, 비용 및 서브에이전트 오케스트레이션을 실시간으로 추적하는 전문 대시보드입니다. 네이티브 Hook과 공급자별 로컬 transcript 검색을 결합합니다.
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-orange?style=flat-square&logo=claude&logoColor=white)
+![Cursor](https://img.shields.io/badge/Cursor-Agent_Monitoring-111827?style=flat-square&logo=cursor&logoColor=white)
 ![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-blue?style=flat-square&logo=githubcopilot&logoColor=white)
 ![Claude Code Plugins](https://img.shields.io/badge/Claude_Code_&_Codex-Plugins_&_Skills-orange?style=flat-square&logo=anthropic&logoColor=white)
 ![Model Context Protocol](https://img.shields.io/badge/Model_Context_Protocol-1.0-0f766e?style=flat-square&logo=modelcontextprotocol&logoColor=white)
@@ -125,6 +126,12 @@ graph LR
     style C fill:#1a1a28,stroke:#2a2a3d,color:#e4e4ed
     style D fill:#10b981,stroke:#34d399,color:#fff
 ```
+
+### Cursor 지원
+
+Cursor는 별도의 설정 선택이 필요 없습니다. 시작 화면에서 **Claude Code**를 선택하면 Cursor 모니터링도 기본으로 활성화됩니다. Dashboard는 `~/.cursor/projects/*/agent-transcripts`를 검색하고 `~/.cursor/chats` 메타데이터를 결합하여 기존 세션의 제목, 프로젝트, 프롬프트 미리보기, 턴 수와 서브에이전트를 백필합니다. 메인 및 서브에이전트 JSONL은 Dashboard 데이터 디렉터리에 스냅샷되어 Cursor가 원본을 정리한 뒤에도 Conversation을 볼 수 있습니다.
+
+Cursor 카드에는 `Cursor · <제목>`과 프로젝트/턴/서브에이전트 부제목이 표시됩니다. 설정의 독립적인 **Cursor 가격** 표는 Grok, Composer와 공개된 타사 모델을 포함하며 Claude 또는 Codex 요금을 잘못 적용하지 않습니다. `DASHBOARD_CURSOR_HOME`과 `DASHBOARD_CURSOR_SYNC_MS`로 경로와 스캔 주기를 조정할 수 있습니다.
 
 실시간 모니터링 대시보드 외에도, `mcp/`에 대시보드 자체를 조사하고 관리하기 위한 도구 카탈로그를 노출하는 로컬 MCP 서버 구현이 포함되어 있어 대시보드 작업을 Claude Code & Codex 워크플로에 직접 통합하기 쉽습니다. 또한 대시보드 상호작용, 분석, 워크플로 인텔리전스를 위한 Claude Code & Codex 플러그인, 스킬, 서브에이전트를 제공하는 에이전트 확장 레이어도 있습니다.
 
@@ -305,7 +312,7 @@ flowchart LR
 
 대시보드는 Claude Code 세션과 에이전트를 모니터링하고 분석하기 위한 포괄적인 기능 세트를 제공합니다:
 
-> **Cursor 세션(안내):** CCAM은 이 머신과 동기화된 원격 머신에서 `~/.claude` 아래에 쌓이는 에이전트 트랜스크립트를 모두 가져옵니다. **Cursor** 사용량도 동일하게 집계됩니다. Cursor는 Claude Code와 같은 경로에 에이전트 세션을 저장하기 때문입니다. CCAM은 어떤 앱이 파일을 썼는지 구분하지 않습니다.
+> **Cursor 기본 지원:** CCAM은 `~/.cursor/projects/*/agent-transcripts`에서 Cursor 네이티브 기록을 찾고 `~/.cursor/chats` 메타데이터로 보강한 뒤, 별도의 `cursor` 제공자로 저장하고 Cursor가 원본을 정리하기 전에 대화를 스냅샷합니다. Claude Code 대시보드 범위를 선택하면 Cursor도 자동으로 포함됩니다. 원격 SSH 소스는 현재 Claude Code와 Codex 홈만 미러링하므로, 원격 Cursor를 가져오려면 해당 홈을 로컬에 마운트하거나 노출하고 `DASHBOARD_CURSOR_HOME`을 설정하세요.
 
 | 기능                               | 설명                                                                                                                                                                                                                                                                          |
 |------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -638,6 +645,8 @@ flowchart LR
 | `DASHBOARD_LIVENESS_PROBE` | `1` (켜짐) | 워치독의 **죽은 세션 활성 상태 회수**(일치하는 로컬 Claude Code 또는 Codex CLI 프로세스가 더 이상 존재하지 않는 `active` 세션을 완료 처리하는 `ps`/`lsof` 기반 프로브 — 대시보드가 꺼져 있는 동안 유실된 `SessionEnd`를 복구)를 비활성화하려면 `0`으로 설정. **다른 머신**(household Hook)에서 전달된 세션은 비-POSIX `cwd`를 보고하여 회수가 자동으로 건너뛰므로, 혼합 로컬 + 전달 배포에서는 더 이상 이것을 끌 필요가 없습니다; 로컬 프로세스가 아무것도 증명하지 못하는 순수 원격 설정에서만 비활성화하십시오. Windows 및 컨테이너 내부에서는 자동으로 비활성화됩니다 |
 | `DASHBOARD_LIVENESS_IDLE_SECONDS` | `60` | **워치독 틱** 활성 상태 회수를 위한 유휴 게이트: 세션의 트랜스크립트가 최소 이 시간 동안 기록되지 않았을 때에만 완료 처리되므로(디스크에 트랜스크립트가 없을 때는 마지막 Hook 기록이 폴백 시계), 턴 진행 중이거나 방금 재개된 세션이 일시적인 프로브 실패로 깜빡이며 사라지는 일이 없습니다. 시작 패스는 이 게이트를 무시합니다 — 부팅 시에는 프로브 단독으로 결정하므로, 실행 직전에 종료된 세션은 즉시 정리됩니다 |
 | `DASHBOARD_SESSION_SYNC_MS` | `30000` | 시작 후 추가되어 세션이 Hook을 통해 흐르지 않는 프로젝트를 표면화하는 지속적 `~/.claude/projects` 백그라운드 동기화의 폴링 간격(ms). `fs.watch` 워처는 이와 무관하게 거의 즉시 발동합니다; 이 폴링은 안전망입니다(워처는 이벤트를 놓치거나 네트워크 파일시스템에서 발동하지 않을 수 있음). 워처는 계속 실행하면서 폴링만 비활성화하려면 `0`으로 설정하십시오 |
+| `DASHBOARD_CURSOR_HOME` | `~/.cursor` | 선택적 Cursor 네이티브 홈입니다. Dashboard가 `projects/*/agent-transcripts`를 읽고 `chats` 메타데이터를 결합해 기존 세션을 백필하며 Dashboard 데이터 디렉터리에 영구 대화 스냅샷을 저장합니다. |
+| `DASHBOARD_CURSOR_SYNC_MS` | `5000` | fingerprint 기반 Cursor 기록 검색의 안전망 간격(ms)입니다. 호환 실시간 Hook 이벤트는 계속 즉시 수집되며 `0`은 주기 스캔을 비활성화합니다. |
 | `DASHBOARD_CODEX_HOME` | `CODEX_HOME` 또는 `~/.codex` | 선택적 로컬 Codex 상태 디렉터리입니다. 설정에서 새 위치를 저장하면 이 대시보드 전용 재정의를 유지하고 실시간 감시를 다시 시작하며 새 `sessions/` 트리를 즉시 스캔합니다. |
 | `DASHBOARD_CODEX_SYNC_MS` | `4000` | append-only Codex rollout을 위한 안전망 폴링 간격(ms)입니다. Codex Hook은 같은 증분 수집을 즉시 실행합니다; `0`으로 설정하면 폴링만 끄고 가능한 경우 파일 시스템 워처는 유지합니다. |
 | `DASHBOARD_CODEX_MAX_ATTEMPTS` | `5` | Codex 스윕이 **변경되지 않은** 하나의 롤아웃에 대해 포기하기 전까지 소모하는 연속 ingest 실패 횟수입니다. 스윕은 읽지 못한 롤아웃을 의도적으로 다시 큐에 넣어 일시적 실패(`SQLITE_BUSY`, 절반만 기록된 레코드)가 다음 패스에서 복구되도록 합니다. 제한이 없으면 *영구적* 실패가 프로세스 수명 내내 반복됩니다 — `DASHBOARD_CODEX_SYNC_MS` 기본값 4초 기준으로 파일당 하루 약 21,600회 시도이며, 매번 단일 Node 스레드에서 로그 한 줄을 씁니다. 이 횟수는 첫 시도를 포함하고 파일마다 따로 계산되며, 파일의 size 또는 mtime이 바뀔 때마다 전부 복원되므로 단지 절반만 기록된 롤아웃은 스스로 복구됩니다. 예산을 소진한 시도는 한 번만 로그를 남기며 한도를 함께 표시합니다. 느리거나 불안정한 볼륨이 몇 번의 스윕보다 오래 걸린다면 값을 올리십시오 |

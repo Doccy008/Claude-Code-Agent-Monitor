@@ -1,10 +1,11 @@
-# Agent Dashboard for Claude Code & Codex
+# Agent Dashboard for Claude Code, Cursor & Codex
 
-### Real-time monitoring platform for Claude Code & Codex agent activity 🚀
+### Real-time monitoring platform for Claude Code, Cursor & Codex agent activity 🚀
 
-A professional dashboard to track and visualize your Claude Code and Codex agent sessions, tool usage, and subagent orchestration in real-time. Built with Node.js, Express, React, and SQLite, it integrates directly with Claude Code and Codex via their native hook systems for seamless session tracking and analytics.
+A professional dashboard to track and visualize Claude Code, Cursor, and Codex agent sessions, tool usage, conversation history, cost, and subagent orchestration in real time. Built with Node.js, Express, React, and SQLite, it combines native hooks with provider-aware local transcript discovery.
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-orange?style=flat-square&logo=claude&logoColor=white)
+![Cursor](https://img.shields.io/badge/Cursor-Agent_Monitoring-111827?style=flat-square&logo=cursor&logoColor=white)
 ![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-blue?style=flat-square&logo=githubcopilot&logoColor=white)
 ![Claude Code Plugins](https://img.shields.io/badge/Claude_Code_&_Codex-Plugins_&_Skills-orange?style=flat-square&logo=anthropic&logoColor=white)
 ![Model Context Protocol](https://img.shields.io/badge/Model_Context_Protocol-1.0-0f766e?style=flat-square&logo=modelcontextprotocol&logoColor=white)
@@ -114,11 +115,12 @@ A professional dashboard to track and visualize your Claude Code and Codex agent
 
 ## Overview
 
-Track sessions, monitor agents in real-time, visualize tool usage, and observe subagent orchestration through a professional dark-themed web interface. Integrates directly with Claude Code & Codex via their native hook systems.
+Track sessions, monitor agents in real time, visualize tool usage, replay conversations, and observe subagent orchestration through a professional dark-themed web interface. Claude Code and Codex use their native hooks; Cursor is included out of the box through its compatible live events plus native `~/.cursor` transcript discovery.
 
 ```mermaid
 graph LR
-    A["Claude Code<br/>Session"] -->|hooks fire on<br/>tool use / stop| B["Hook Handler<br/>(Node.js script)"]
+    A["Claude Code / Cursor<br/>Session"] -->|hooks + local<br/>transcript discovery| B["Hook Handler + Cursor Sync<br/>(Node.js)"]
+    X["Codex<br/>Session"] -->|hooks + rollout JSONL| B
     B -->|HTTP POST| C["Dashboard Server<br/>(Express + SQLite)"]
     C -->|WebSocket<br/>broadcast| D["Dashboard UI<br/>(React + Tailwind)"]
     style A fill:#6366f1,stroke:#818cf8,color:#fff
@@ -126,6 +128,12 @@ graph LR
     style C fill:#1a1a28,stroke:#2a2a3d,color:#e4e4ed
     style D fill:#10b981,stroke:#34d399,color:#fff
 ```
+
+### Cursor support
+
+Cursor needs no separate setup choice: selecting **Claude Code** on the splash screen also enables Cursor monitoring. The dashboard classifies `.cursor` transcript paths as the `cursor` provider, scans `~/.cursor/projects/*/agent-transcripts`, joins chat metadata from `~/.cursor/chats`, and backfills existing sessions with native titles, projects, prompt previews, turn counts, and subagents. Main and subagent JSONL files are snapshotted under the dashboard data directory, so Conversation remains available after Cursor cleans its own history.
+
+Cursor cards receive native `Cursor · <title>` headings and project/turn/subagent subtitles. Costs use a dedicated, editable **Cursor Pricing** table in Settings—covering Cursor Grok 4.6/4.5, Composer 2.5, and the published third-party model catalog—rather than borrowing Claude or Codex rates. Override the source root with `DASHBOARD_CURSOR_HOME`; tune polling with `DASHBOARD_CURSOR_SYNC_MS` (`0` disables the periodic safety scan).
 
 In addition to the real-time monitoring dashboard, it also includes a local MCP server implementation in `mcp/` that exposes a catalog of tools for introspecting and managing the dashboard itself, making it easy to integrate dashboard operations directly into your Claude Code & Codex workflows. There is also an agent extension layer, which provides Claude Code & Codex plugins, skills, and subagents for dashboard interaction, analytics, and workflow intelligence.
 
@@ -306,7 +314,7 @@ The sidebar provides quick access to all nine pages — Dashboard, Kanban Board,
 
 The dashboard offers a comprehensive set of features to monitor and analyze your Claude Code sessions and agents:
 
-> **Cursor sessions too (informational):** CCAM ingests whatever agent transcripts land under `~/.claude` — on this machine and on synced remotes. **Cursor** usage counts the same way: Cursor happens to store its agent sessions in those paths alongside Claude Code. CCAM does not distinguish which app wrote a file.
+> **Cursor is built in:** CCAM discovers native Cursor history from `~/.cursor/projects/*/agent-transcripts`, enriches it with `~/.cursor/chats` metadata, stores it as the distinct `cursor` provider, and snapshots conversations before Cursor cleans up its files. Cursor is included whenever the Claude Code dashboard scope is selected. Remote SSH sources currently mirror Claude Code and Codex homes only; mount or expose a remote Cursor home locally to ingest it with `DASHBOARD_CURSOR_HOME`.
 
 | Feature                            | Description                                                                                                                                                                                                                                                                  |
 |------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -637,6 +645,8 @@ flowchart LR
 | `DASHBOARD_LIVENESS_PROBE` | `1` (on) | Set to `0` to disable the watchdog's **dead-session liveness reap** (the `ps`/`lsof`-based probe that completes `active` local Claude Code or Codex sessions whose matching CLI process no longer exists — recovering a `SessionEnd` lost while the dashboard was down). Sessions forwarded from **another machine** (household hooks) report a non-POSIX `cwd` and are auto-skipped by the reap, so a mixed local + forwarded deployment no longer needs this off; disable it only for a purely-remote setup where local processes prove nothing. Auto-disabled on Windows and inside containers |
 | `DASHBOARD_LIVENESS_IDLE_SECONDS` | `60` | Idle gate for the **watchdog-tick** liveness reap: a session is only completed when its transcript hasn't been written for at least this long (the last hook write is the fallback clock when no transcript exists on disk), so a mid-turn or just-resumed session never flickers out on a transient probe miss. The startup passes ignore this gate — at boot the probe alone decides, so sessions quit moments before launch clear immediately |
 | `DASHBOARD_SESSION_SYNC_MS` | `30000` | Poll interval (ms) for the continuous `~/.claude/projects` background sync that surfaces projects added after startup whose sessions never flow through hooks. The `fs.watch` watcher fires near-instantly regardless; this poll is the safety net (watchers can miss events / not fire on network filesystems). Set to `0` to disable the poll while leaving the watcher running |
+| `DASHBOARD_CURSOR_HOME` | `~/.cursor` | Optional native Cursor home. The dashboard reads `projects/*/agent-transcripts`, joins `chats` metadata, backfills existing sessions, and stores durable conversation snapshots under the dashboard data directory. |
+| `DASHBOARD_CURSOR_SYNC_MS` | `5000` | Safety-net interval (ms) for fingerprinted Cursor history discovery. Compatible live hook events still ingest immediately; set to `0` to disable the periodic scan. |
 | `DASHBOARD_CODEX_HOME` | `CODEX_HOME` or `~/.codex` | Optional local Codex state directory. Rollouts are read only from its `sessions/` tree; saving a new location in Settings persists this dashboard-only override, re-arms live watching, and immediately scans the new tree. |
 | `DASHBOARD_CODEX_SYNC_MS` | `4000` | Safety-net poll interval (ms) for append-only Codex rollouts. Codex hooks trigger the same incremental ingest immediately; set to `0` to disable only the poll while retaining the filesystem watcher when available. |
 | `DASHBOARD_CODEX_MAX_ATTEMPTS` | `5` | Consecutive failed ingest attempts the Codex sweep spends on one **unchanged** rollout before leaving it alone. The sweep deliberately re-queues a rollout it could not read so a transient failure (`SQLITE_BUSY`, a half-written record) recovers on the next pass; without a bound a *permanent* failure repeats for the life of the process — ~21,600 attempts per file per day at the 4 s `DASHBOARD_CODEX_SYNC_MS` default, each writing a log line on the single Node thread. The count includes the first attempt, is tracked per file, and is restored in full whenever the file's size or mtime changes, so a rollout that was merely half-written still recovers on its own. The attempt that spends the budget logs once, naming the limit. Raise it if a slow or flaky volume needs longer than a few sweeps to settle |
