@@ -6,7 +6,7 @@ The Claude Code Agent Monitor (CCAM) MCP server exposes the local dashboard's co
 
 ```mermaid
 flowchart LR
-    H["Claude Code / Codex / MCP host"] -->|stdio or HTTP| M["CCAM MCP server"]
+    H["Claude Code / Cursor / Codex / MCP host"] -->|stdio or HTTP| M["CCAM MCP server"]
     R["Operator"] -->|ccam mcp repl| M
     M -->|loopback HTTP| A["CCAM /api/*"]
     A --> D[(SQLite)]

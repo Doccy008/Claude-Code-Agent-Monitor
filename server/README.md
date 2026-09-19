@@ -693,7 +693,7 @@ Because sync runs non-interactively (`ssh -o BatchMode=yes`), the connection mus
 | `POST` | `/api/settings/reinstall-hooks`| Reinstall Claude Code hooks                      |
 | `POST` | `/api/settings/install-hooks` | Install selected Claude Code and/or Codex hook sets; preserves unrelated hook entries |
 | `POST` | `/api/settings/reset-pricing`  | Reset Claude, Codex, or both pricing tables to defaults |
-| `GET`  | `/api/settings/export`         | Export all data (sessions, agents, events, token_usage, workflows, dashboard_runs, alert_rules, model_pricing, gpt_model_pricing) as one versioned JSON attachment |
+| `GET`  | `/api/settings/export`         | Export all data (sessions, agents, events, token_usage, workflows, dashboard_runs, alert_rules, model_pricing, cursor_model_pricing, gpt_model_pricing) as one versioned JSON attachment |
 | `POST` | `/api/settings/import`         | Restore one bundle up to 25 MiB from `/export`. Multipart `file`, or JSON `{ path }` (server reads it). Idempotent + non-destructive: sessions already present are skipped whole |
 | `POST` | `/api/settings/cleanup`        | Abandon stale sessions and purge old data        |
 | `GET` / `PUT` | `/api/settings/claude-home` | Read or update the Claude Code transcript/configuration root |
@@ -1365,7 +1365,7 @@ Live user actions and the transcript-tail check clear the error; unrelated backg
 
 ### Graceful Shutdown
 
-`SIGTERM` / `SIGINT` tear the server down in a fixed order so a restart is fast and clean. In development, `scripts/dev-server.js` watches runtime server/script sources, coalesces a burst of saves for 500 ms, and sends one SIGTERM before waiting for this shutdown sequence to finish. Its child inherits stdio directly, avoiding the built-in `node --watch` output proxy's fatal `EPIPE` during repeated restarts:
+`SIGTERM` / `SIGINT` tear the server down in a fixed order so a restart is fast and clean. In development, `scripts/dev-server.js` watches runtime server/script sources, coalesces a burst of saves for 500 ms, and sends one SIGTERM before waiting for this shutdown sequence to finish. Its child inherits stdio directly, avoiding the built-in `node --watch` output proxy's fatal `EPIPE` during repeated restarts. The WSL remote-history transport also owns error handlers on both sides of its `ssh.stdout → tar.stdin` pipe: if reload closes `tar` while SSH still has buffered archive bytes, that source sync reports a contained stream failure instead of an uncaught `write EPIPE` terminating the dashboard.
 
 1. **Drop realtime clients first** — `closeWebSocket()` (`server/websocket.js`) terminates every WebSocket client so their underlying TCP sockets release. Open WS sockets otherwise keep the HTTP server alive.
 2. **`httpServer.close()`** — stop accepting new connections and begin draining in-flight requests.
@@ -1537,7 +1537,7 @@ test("POST /api/hooks/event ingests hook payload", async () => {
 
 ## Terminal Access (`ccam` CLI)
 
-Everything this server exposes over JSON REST is reachable from the dependency-free `ccam` CLI (`bin/ccam.js`, linked by `npm run setup`). High-level commands cover monitoring, data browsing, workflows/cost, Run Agent, alerts/rules/webhooks, Claude and GPT pricing, provider-aware imports, remote sources, Claude/Codex config, hooks, backup restore, and administration. `ccam api <METHOD> /api/path` provides future-proof low-level coverage with `--yes` on writes and exact confirmation tokens for destructive actions. Multipart history upload is available through `ccam import upload`. It resolves the live server through the same `~/.claude/.agent-dashboard.json` registry as the hook handler and supports `DASHBOARD_API_TOKEN` / `CCAM_API_TOKEN` when the API is protected. See [docs/CLI.md](../docs/CLI.md).
+Everything this server exposes over JSON REST is reachable from the dependency-free `ccam` CLI (`bin/ccam.js`, linked by `npm run setup`). High-level commands cover monitoring, data browsing, workflows/cost, Run Agent, alerts/rules/webhooks, Claude, Cursor, and GPT pricing, provider-aware imports, remote sources, Claude/Codex config, hooks, backup restore, and administration. `ccam api <METHOD> /api/path` provides future-proof low-level coverage with `--yes` on writes and exact confirmation tokens for destructive actions. Multipart history upload is available through `ccam import upload`. It resolves the live server through the same `~/.claude/.agent-dashboard.json` registry as the hook handler and supports `DASHBOARD_API_TOKEN` / `CCAM_API_TOKEN` when the API is protected. See [docs/CLI.md](../docs/CLI.md).
 
 ## Deployment
 

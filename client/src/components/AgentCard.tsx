@@ -1,8 +1,8 @@
 /**
  * @file AgentCard.tsx
  * @description Defines the AgentCard component that displays a summary of an
- * agent's name, status, task, current tool, timestamps, and native Cursor/Codex
- * titles plus latest-two-human-turn context. Cards reuse session task-progress
+ * agent's name, status, task, current tool, timestamps, and consistent native
+ * Claude Code/Cursor/Codex titles plus latest-two-human-turn context. Cards reuse session task-progress
  * donuts beside status when available. Durable cards navigate to session
  * details while the brief pre-identity Codex process card stays non-navigable.
  * @author Son Nguyen <hoangson091104@gmail.com>
@@ -66,21 +66,6 @@ import { TodoProgressIndicator } from "./TodoProgressIndicator";
 import { effectiveAgentStatus, isAgentAwaitingInput, agentAwaitingReason } from "../lib/types";
 import type { Agent, Session } from "../lib/types";
 import { formatDuration, timeAgo, formatModelName, pathBasename, fmtCost } from "../lib/format";
-
-/**
- * Display name for a main agent, swapping its auto-generated placeholder for the
- * real session title when one exists. Main agents are created as
- * `<prefix> - <placeholder>`, where the placeholder is either `Session <id8>`
- * (live hooks) or `<cwd-folder> - <id8>` (import / background sync). Replacing
- * everything after the first ` - ` covers BOTH formats — the older
- * `replace(/Session [0-9a-f]{8}/)` only matched the hook form, so imported
- * sessions kept showing `<folder> - <id8>` even after their title was known.
- */
-function mainAgentDisplayName(agentName: string, realSessionName: string): string {
-  if (!realSessionName) return agentName;
-  const sep = agentName.indexOf(" - ");
-  return sep >= 0 ? `${agentName.slice(0, sep)} - ${realSessionName}` : agentName;
-}
 
 /** Keep a compact card's history legible: at most two distinct human turns,
  * one visual row each. This intentionally preserves a title-matching first
@@ -154,12 +139,17 @@ export function AgentCard({ agent, session, label, onClick }: AgentCardProps) {
     : sessionName;
   const isCodexMain = isMain && session?.provider === "codex" && agent.name.trim() === "Codex";
   const isCursorMain = isMain && session?.provider === "cursor";
+  const isClaudeMain =
+    isMain &&
+    session?.provider !== "cursor" &&
+    session?.provider !== "codex" &&
+    /^Main Agent(?:\s*-|$)/i.test(agent.name.trim());
   const displayName = isCodexMain
     ? `Codex · ${realSessionName || agent.session_id.slice(0, 8)}`
     : isCursorMain
       ? `Cursor · ${realSessionName || agent.session_id.slice(0, 8)}`
-      : isMain
-        ? mainAgentDisplayName(agent.name, realSessionName)
+      : isClaudeMain
+        ? `Claude Code · ${realSessionName || agent.session_id.slice(0, 8)}`
         : agent.name;
   // Session titles and requests are intentionally independent: Claude,
   // Cursor, and Codex persist two recent real human turns on the session, while a
@@ -250,11 +240,9 @@ export function AgentCard({ agent, session, label, onClick }: AgentCardProps) {
           </div>
           <div className="min-w-0 overflow-hidden">
             <p className="text-sm font-medium text-gray-200 truncate">
-              {/* Auto-generated main-agent titles (e.g. "Main Agent - Session
-                  229d93fd" or "Main Agent - work - e3f8e613") swap the
-                  placeholder for the real session name when one exists. Codex
-                  main agents use their native renamed title (or short ID) so
-                  a board never shows a bare, indistinguishable "Codex". */}
+              {/* Provider-owned main cards use one consistent title shape:
+                  "Claude Code/Cursor/Codex · <native title or short ID>".
+                  Custom non-placeholder agent names remain untouched. */}
               {displayName}
             </p>
             {subtitle && <p className="text-[11px] text-gray-500 truncate">{subtitle}</p>}
