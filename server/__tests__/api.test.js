@@ -1119,6 +1119,98 @@ describe("Hook Event Processing", () => {
     assert.equal(main.awaiting_reason, "notification");
   });
 
+  it("should NOT flag waiting for an idle_prompt notification, even though its text says 'waiting for your input'", async () => {
+    // No SessionStart first: it stamps its own awaiting reason ('session_start').
+    await post("/api/hooks/event", {
+      hook_type: "Notification",
+      data: {
+        session_id: "hook-sess-idle-prompt",
+        notification_type: "idle_prompt",
+        message: "Claude is waiting for your input",
+      },
+    });
+    const sessRes = await fetch("/api/sessions/hook-sess-idle-prompt");
+    assert.notEqual(sessRes.body.session.awaiting_reason, "notification");
+    assert.equal(sessRes.body.session.awaiting_input_since, null);
+  });
+
+  it("should flag waiting for a permission_prompt notification regardless of its text", async () => {
+    await post("/api/hooks/event", {
+      hook_type: "SessionStart",
+      data: { session_id: "hook-sess-perm-prompt" },
+    });
+    await post("/api/hooks/event", {
+      hook_type: "Notification",
+      data: {
+        session_id: "hook-sess-perm-prompt",
+        notification_type: "permission_prompt",
+        message: "Bash",
+      },
+    });
+    const sessRes = await fetch("/api/sessions/hook-sess-perm-prompt");
+    assert.ok(sessRes.body.session.awaiting_input_since);
+    assert.equal(sessRes.body.session.awaiting_reason, "notification");
+  });
+
+  it("should flag waiting for a permission_prompt even when its text looks like compaction", async () => {
+    await post("/api/hooks/event", {
+      hook_type: "Notification",
+      data: {
+        session_id: "hook-sess-perm-compress",
+        notification_type: "permission_prompt",
+        message: "Claude needs your permission to use compress_logs",
+      },
+    });
+    const sessRes = await fetch("/api/sessions/hook-sess-perm-compress");
+    assert.ok(sessRes.body.session.awaiting_input_since);
+    assert.equal(sessRes.body.session.awaiting_reason, "notification");
+  });
+
+  it("should flag waiting for quota_auto_resume_stale (it waits for Enter)", async () => {
+    await post("/api/hooks/event", {
+      hook_type: "Notification",
+      data: {
+        session_id: "hook-sess-quota-stale",
+        notification_type: "quota_auto_resume_stale",
+        message: "Claude is waiting for your input. Press Enter to resume.",
+      },
+    });
+    const sessRes = await fetch("/api/sessions/hook-sess-quota-stale");
+    assert.ok(sessRes.body.session.awaiting_input_since);
+    assert.equal(sessRes.body.session.awaiting_reason, "notification");
+  });
+
+  it("should keep the compaction exclusion for an unknown or empty notification_type", async () => {
+    for (const [sid, type] of [
+      ["hook-sess-compact-future", "future_type"],
+      ["hook-sess-compact-empty", ""],
+      ["hook-sess-compact-none", undefined],
+    ]) {
+      const data = { session_id: sid, message: "Context compression is waiting for your input" };
+      if (type !== undefined) data.notification_type = type;
+      await post("/api/hooks/event", { hook_type: "Notification", data });
+      const sessRes = await fetch(`/api/sessions/${sid}`);
+      assert.notEqual(sessRes.body.session.awaiting_reason, "notification", `type=${type}`);
+    }
+  });
+
+  it("should fall back to the message text for an unknown notification_type", async () => {
+    await post("/api/hooks/event", {
+      hook_type: "SessionStart",
+      data: { session_id: "hook-sess-unknown-type" },
+    });
+    await post("/api/hooks/event", {
+      hook_type: "Notification",
+      data: {
+        session_id: "hook-sess-unknown-type",
+        notification_type: "some_future_type",
+        message: "Claude needs your permission to use Bash",
+      },
+    });
+    const sessRes = await fetch("/api/sessions/hook-sess-unknown-type");
+    assert.ok(sessRes.body.session.awaiting_input_since);
+  });
+
   it("should clear awaiting_input_since when the user resumes (next PreToolUse)", async () => {
     // Re-arm the waiting state — previous test may have left it set, but be
     // explicit so this test stands on its own.
