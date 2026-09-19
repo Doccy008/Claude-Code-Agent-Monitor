@@ -583,6 +583,31 @@ or SSH-pulled session is refused per-item (`SESSION_LOCALLY_OWNED`) rather
 than allowed to hijack it — a pushed session can only ever create a NEW
 session or append to one it created itself.
 
+**Remote-origin hooks.** A collector that also forwards live hooks from the
+remote machine (so the dashboard gets real-time status, not just batch
+totals) can send the same `REMOTE_PUSH_TOKEN` header on
+`POST /api/hooks/event`. When it matches, a session that event *creates* is
+born `remote_push`-owned — optionally tagged with a supported `data.provider`
+(`claude`/`codex`) — so the collector's later `ingest-batch` calls can enrich
+it. Ownership is still decided once, at row creation, by an authenticated
+source: an existing local session is never relabelled, and a hook without the
+token (or with a wrong one) keeps today's local behaviour.
+
+If `DASHBOARD_HOOK_TOKEN` is also set, `hookGuard` authenticates every
+`/api/hooks/*` request first, so a remote hook needs **both** credentials in
+separate headers:
+
+```http
+X-CCAM-Hook-Token: <DASHBOARD_HOOK_TOKEN>
+Authorization: Bearer <REMOTE_PUSH_TOKEN>
+```
+
+`X-Dashboard-Token: <REMOTE_PUSH_TOKEN>` works in place of the
+`Authorization: Bearer` header — `hookGuard` reads `X-CCAM-Hook-Token` first,
+so the two credentials never collide. Sending only the remote-push token then
+gets `401` from `hookGuard` — the hook-auth boundary is unchanged by
+remote-origin ownership.
+
 Response (`200`, even when individual items were skipped/rejected — see
 `errors[]`/`skipped` for partial-failure detail):
 

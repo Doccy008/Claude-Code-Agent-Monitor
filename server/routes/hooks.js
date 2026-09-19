@@ -178,7 +178,7 @@ function recoverInterruptedSession(sessionId, fullSess, mainAgentId, reasonSuffi
  * @param {Record<string, unknown>} data Sanitized hook payload.
  * @returns {object|null} Current session row, or null after a failed insert.
  */
-function ensureSession(sessionId, data) {
+function ensureSession(sessionId, data, origin = null) {
   let session = stmts.getSession.get(sessionId);
   const repoRemoteUrl = sanitizeRepoRemoteUrl(data.repo_remote_url);
   if (!session) {
@@ -190,6 +190,17 @@ function ensureSession(sessionId, data) {
       data.model || null,
       null
     );
+    // A hook that proved REMOTE_PUSH_TOKEN (see POST /event) comes from
+    // another machine: birth the row as remote-push owned so the same
+    // collector's POST /ingest-batch can enrich it with tokens/tool events.
+    // Decided once, at creation only -- an existing row is never relabelled,
+    // so a remote caller still cannot take over a locally-managed session.
+    if (origin && origin.remotePush) {
+      stmts.setSessionSource.run(REMOTE_PUSH_SOURCE, sessionId);
+      if (REMOTE_PROVIDERS.includes(data.provider) && data.provider !== "claude") {
+        setSessionProviderStmt.run(data.provider, sessionId);
+      }
+    }
     session = stmts.getSession.get(sessionId);
     if (!session) {
       console.error(`[HOOKS] Failed to create session ${sessionId} — insert returned no row`);
@@ -395,7 +406,7 @@ function syncCardPromptPreview(sessionId, result) {
  * @param {Record<string, unknown>} data Hook payload.
  * @returns {object|null} Broadcast-ready event, or null without a session id.
  */
-const processEvent = db.transaction((hookType, data) => {
+const processEvent = db.transaction((hookType, data, origin = null) => {
   // `events.data` stores the entire hook envelope. Normalize the field before
   // ANY downstream work so its original userinfo cannot bypass the sanitized
   // session column through this separate durable persistence path.
@@ -408,7 +419,7 @@ const processEvent = db.transaction((hookType, data) => {
   const sessionId = data.session_id;
   if (!sessionId) return null;
 
-  const session = ensureSession(sessionId, data);
+  const session = ensureSession(sessionId, data, origin);
 
   // Remote household hooks (aideck-hook.js on other machines) cannot rely on
   // the transcript being readable on THIS host (the JSONL lives on the remote
@@ -1274,7 +1285,16 @@ router.post("/event", (req, res) => {
     });
   }
 
-  const result = processEvent(hook_type, data);
+  // Optional remote-origin proof. A hook forwarded from another machine may
+  // present REMOTE_PUSH_TOKEN (Bearer / X-Dashboard-Token, header only); a
+  // matching token only changes who OWNS a newly created session (see
+  // ensureSession). Anything else -- no token, a wrong token, or a
+  // DASHBOARD_HOOK_TOKEN in the same header -- keeps today's local behaviour,
+  // so this never rejects a hook that is accepted now.
+  const expectedRemoteToken = getRemotePushToken();
+  const remotePush =
+    !!expectedRemoteToken && tokensMatch(extractHeaderOnlyToken(req), expectedRemoteToken);
+  const result = processEvent(hook_type, data, remotePush ? { remotePush: true } : null);
   if (!result) {
     return res.status(400).json({
       error: { code: "MISSING_SESSION", message: "session_id is required in data" },
@@ -1819,6 +1839,7 @@ function livenessReap({ ignoreIdleGate = false, provider = "claude" } = {}) {
 // carries no `src_` prefix, so it can never collide with a real configured
 // SSH source id, now or in the future (the id format is fixed at creation).
 const REMOTE_PUSH_SOURCE = "remote_push";
+const setSessionProviderStmt = db.prepare("UPDATE sessions SET provider = ? WHERE id = ?");
 
 // Bump only on a real wire-format break. A mismatch is a whole-request 409 —
 // per-item soft-fail doesn't make sense when the client and server disagree
