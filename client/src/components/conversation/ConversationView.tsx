@@ -211,7 +211,10 @@ export function ConversationView({ sessionId, initialTranscriptId }: Conversatio
 
       lastLineRef.current = result.last_line;
       const newestId = result.messages[result.messages.length - 1]?.id || null;
-      const hasNewMessage = newestId !== null && newestId !== latestMessageIdRef.current;
+      // Claude and Codex messages do not expose stable ids, so any non-empty
+      // incremental batch is new for those providers. Cursor ids let refresh
+      // windows suppress a duplicate scroll/indicator during JSONL hand-off.
+      const hasNewMessage = newestId === null || newestId !== latestMessageIdRef.current;
       latestMessageIdRef.current = newestId;
 
       if (wasBootstrap) {

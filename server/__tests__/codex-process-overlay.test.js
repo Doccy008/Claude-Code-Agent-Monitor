@@ -580,6 +580,57 @@ describe("Codex process overlay lifecycle", () => {
     db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
   });
 
+  it("hints a replacement process that reopens the same durable thread", async () => {
+    const cwd = "/workspace/resumed-replacement";
+    const sessionId = "019fe444-4444-7250-b7d2-a4bdf6772d3f";
+    const agentId = `codex:${sessionId}`;
+    const timestamp = "2026-08-07T21:16:03.000Z";
+    const metadata = JSON.stringify({ provider: "codex", transcript_path: null });
+    stmts.insertCodexSession.run(
+      sessionId,
+      "Reopened Codex session",
+      "completed",
+      cwd,
+      "gpt-5.6-luna",
+      "local",
+      timestamp,
+      timestamp,
+      metadata
+    );
+    stmts.insertAgent.run(
+      agentId,
+      sessionId,
+      "Codex",
+      "main",
+      null,
+      "completed",
+      null,
+      null,
+      metadata
+    );
+
+    const first = await refreshCodexProcessOverlay({
+      probe: { available: true, processes: [{ pid: 4804, cwd, sessionId }] },
+      now: "2026-08-07T21:16:04.000Z",
+    });
+    assert.equal(first.resumed.length, 1);
+
+    db.prepare("UPDATE sessions SET status = 'completed', ended_at = updated_at WHERE id = ?").run(
+      sessionId
+    );
+    stmts.updateAgent.run(null, "completed", null, null, null, timestamp, agentId);
+
+    const replacement = await refreshCodexProcessOverlay({
+      probe: { available: true, processes: [{ pid: 4805, cwd, sessionId }] },
+      now: "2026-08-07T21:17:04.000Z",
+    });
+    assert.equal(replacement.resumed.length, 1);
+    assert.equal(stmts.getSession.get(sessionId).status, "active");
+    assert.equal(stmts.getAgent.get(agentId).status, "waiting");
+
+    db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+  });
+
   it("does not let completed history hide an unrelated new process in the same cwd", () => {
     const cwd = "/workspace/reused-cwd";
     const change = reconcileCodexProcessOverlay(

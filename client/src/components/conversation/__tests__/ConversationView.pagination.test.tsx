@@ -167,4 +167,55 @@ describe("ConversationView history pagination", () => {
       limit: 50,
     });
   });
+
+  it("announces incremental id-less Claude and Codex messages away from the bottom", async () => {
+    mocks.transcript
+      .mockResolvedValueOnce(
+        result(
+          [
+            {
+              type: "assistant",
+              sender: "assistant",
+              timestamp: null,
+              content: [{ type: "text", text: "Existing response" }],
+            },
+          ],
+          1,
+          1,
+          false
+        )
+      )
+      .mockResolvedValueOnce(
+        result(
+          [
+            {
+              type: "assistant",
+              sender: "assistant",
+              timestamp: null,
+              content: [{ type: "text", text: "New id-less response" }],
+            },
+          ],
+          2,
+          2,
+          false
+        )
+      );
+
+    render(<ConversationView sessionId="claude-session" />);
+    await screen.findByText("Existing response");
+
+    const container = screen.getByTestId("transcript-scroll-container");
+    Object.defineProperties(container, {
+      scrollHeight: { configurable: true, value: 1_000 },
+      clientHeight: { configurable: true, value: 200 },
+      scrollTop: { configurable: true, writable: true, value: 100 },
+    });
+    fireEvent.scroll(container);
+    for (const handler of mocks.handlers) {
+      handler({ type: "new_event", data: { session_id: "claude-session" } });
+    }
+
+    await screen.findByText("New id-less response");
+    expect(screen.getByRole("button", { name: /new messages/i })).toBeInTheDocument();
+  });
 });
