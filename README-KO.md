@@ -114,11 +114,12 @@ Claude Code, Cursor, Codex 에이전트 세션, 도구 사용, 대화 기록, �
 
 ## 개요
 
-Claude Code & Codex의 에이전트 활동을 실시간으로 모니터링하고 분석할 수 있는 전문적인 다크 테마 웹 인터페이스를 통해 세션을 추적하고, 에이전트를 실시간으로 모니터링하며, 도구 사용을 시각화하고, 서브에이전트 오케스트레이션을 관찰하세요. Claude Code & Codex의 네이티브 Hook 시스템을 통해 직접 통합됩니다.
+전문적인 다크 테마 웹 인터페이스에서 세션을 추적하고, 에이전트를 실시간으로 모니터링하며, 도구 사용을 시각화하고, 대화를 재생하고, 서브에이전트 오케스트레이션을 관찰하세요. Claude Code와 Codex는 네이티브 Hook을 사용하며, Cursor는 호환되는 실시간 이벤트와 네이티브 `~/.cursor` Transcript 탐색을 통해 기본 제공됩니다.
 
 ```mermaid
 graph LR
-    A["Claude Code & Codex<br/>Session"] -->|hooks fire on<br/>tool use / stop| B["Hook Handler<br/>(Node.js script)"]
+    A["Claude Code / Cursor<br/>세션"] -->|Hook + 로컬<br/>Transcript 탐색| B["Hook Handler + Cursor 동기화<br/>(Node.js)"]
+    X["Codex<br/>세션"] -->|Hook + Rollout JSONL| B
     B -->|HTTP POST| C["Dashboard Server<br/>(Express + SQLite)"]
     C -->|WebSocket<br/>broadcast| D["Dashboard UI<br/>(React + Tailwind)"]
     style A fill:#6366f1,stroke:#818cf8,color:#fff

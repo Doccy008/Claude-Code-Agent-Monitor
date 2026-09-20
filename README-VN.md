@@ -114,11 +114,12 @@ Tài liệu đã bản địa hóa: [`README.md`](./README.md) · [`README-CN.md
 
 ## Tổng quan
 
-Theo dõi các phiên, giám sát tác nhân trong thời gian thực, trực quan hóa việc sử dụng công cụ và quan sát việc điều phối tác nhân phụ thông qua giao diện web có chủ đề tối chuyên nghiệp. Tích hợp trực tiếp với Claude Code & Codex thông qua hệ thống hook gốc của nó.
+Theo dõi phiên, giám sát agent theo thời gian thực, trực quan hóa việc sử dụng công cụ, phát lại hội thoại và quan sát điều phối agent phụ qua giao diện web tối chuyên nghiệp. Claude Code và Codex dùng hook gốc; Cursor được hỗ trợ sẵn qua các sự kiện thời gian thực tương thích và khả năng khám phá transcript gốc trong `~/.cursor`.
 
 ```mermaid
 graph LR
-    A["Claude Code & Codex<br/>Session"] -->|hooks fire on<br/>tool use / stop| B["Hook Handler<br/>(Node.js script)"]
+    A["Claude Code / Cursor<br/>Phiên"] -->|hook + khám phá<br/>transcript cục bộ| B["Hook Handler + đồng bộ Cursor<br/>(Node.js)"]
+    X["Codex<br/>Phiên"] -->|hook + rollout JSONL| B
     B -->|HTTP POST| C["Dashboard Server<br/>(Express + SQLite)"]
     C -->|WebSocket<br/>broadcast| D["Dashboard UI<br/>(React + Tailwind)"]
     style A fill:#6366f1,stroke:#818cf8,color:#fff

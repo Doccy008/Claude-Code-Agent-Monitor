@@ -114,11 +114,12 @@ Un panel profesional para rastrear sesiones, herramientas, historial de conversa
 
 ## Resumen general
 
-Realice sesiones de seguimiento, supervise a los agentes en tiempo real, visualice el uso de las herramientas y observe la orquestación de subagentes a través de una interfaz web profesional con tema oscuro. Se integra directamente con Claude Code & Codex a través de su sistema de ganchos nativo.
+Siga sesiones, supervise agentes en tiempo real, visualice el uso de herramientas, reproduzca conversaciones y observe la orquestación de subagentes mediante una interfaz web profesional con tema oscuro. Claude Code y Codex usan sus hooks nativos; Cursor se incluye de fábrica mediante eventos en vivo compatibles y el descubrimiento nativo de transcripciones en `~/.cursor`.
 
 ```mermaid
 graph LR
-    A["Claude Code & Codex<br/>Session"] -->|hooks fire on<br/>tool use / stop| B["Hook Handler<br/>(Node.js script)"]
+    A["Claude Code / Cursor<br/>Sesión"] -->|hooks + descubrimiento<br/>local de transcripciones| B["Hook Handler + sincronización de Cursor<br/>(Node.js)"]
+    X["Codex<br/>Sesión"] -->|hooks + rollout JSONL| B
     B -->|HTTP POST| C["Dashboard Server<br/>(Express + SQLite)"]
     C -->|WebSocket<br/>broadcast| D["Dashboard UI<br/>(React + Tailwind)"]
     style A fill:#6366f1,stroke:#818cf8,color:#fff
