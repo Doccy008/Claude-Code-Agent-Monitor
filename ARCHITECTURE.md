@@ -107,13 +107,19 @@ Agent Dashboard is a local-first monitoring platform for Claude Code, Cursor, an
 C4Context
     title System Context Diagram
 
-    Person(user, "Developer", "Uses Claude Code CLI")
+    Person(user, "Developer", "Uses Claude Code, Cursor, and Codex")
     System(claude, "Claude Code", "AI coding assistant with hook system")
+    System(cursor, "Cursor", "AI editor with Claude-compatible hooks and native transcripts")
+    System(codex, "Codex", "AI coding agent with hooks and rollout history")
     System(dashboard, "Agent Dashboard", "Monitoring platform")
     SystemDb(sqlite, "SQLite", "Persistent storage")
 
     Rel(user, claude, "Interacts with")
+    Rel(user, cursor, "Interacts with")
+    Rel(user, codex, "Interacts with")
     Rel(claude, dashboard, "Sends hook events via stdin + HTTP")
+    Rel(cursor, dashboard, "Sends compatible hooks; exposes native JSONL")
+    Rel(codex, dashboard, "Sends hooks; exposes rollout JSONL")
     Rel(user, dashboard, "Views in browser")
     Rel(dashboard, sqlite, "Reads/writes")
 ```

@@ -2,7 +2,8 @@
  * @file cursor-home.js
  * @description Resolves Cursor's local session roots, identifies Cursor agent
  * transcripts, discovers companion chat metadata, and locates durable dashboard
- * snapshots without depending on Cursor's retention policy.
+ * snapshots without depending on Cursor's retention policy. Transcript helpers
+ * validate path segments and contain every resolved file to its expected root.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -10,6 +11,35 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { getDataDir } = require("./claude-home");
+
+const SAFE_CURSOR_ID_RE = /^[A-Za-z0-9_-]+$/;
+
+/** Cursor session and subagent identifiers are single filesystem segments. */
+function isSafeCursorId(value) {
+  return typeof value === "string" && SAFE_CURSOR_ID_RE.test(value);
+}
+
+/** Return whether a candidate is a strict descendant of one trusted directory. */
+function isPathInside(root, candidate) {
+  const relative = path.relative(root, candidate);
+  if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`)) return false;
+  if (path.isAbsolute(relative)) return false;
+  return true;
+}
+
+/** Resolve an existing child file, including symlinks, inside its trusted directory. */
+function existingContainedCursorFile(root, filename) {
+  const resolvedRoot = path.resolve(root);
+  const candidate = path.resolve(resolvedRoot, filename);
+  if (!isPathInside(resolvedRoot, candidate) || !fs.existsSync(candidate)) return null;
+  try {
+    const realRoot = fs.realpathSync(resolvedRoot);
+    const realCandidate = fs.realpathSync(candidate);
+    return isPathInside(realRoot, realCandidate) ? realCandidate : null;
+  } catch {
+    return null;
+  }
+}
 
 function getCursorHome() {
   return path.resolve(process.env.DASHBOARD_CURSOR_HOME || path.join(os.homedir(), ".cursor"));
@@ -135,19 +165,20 @@ function findCursorTranscriptPath(sessionId) {
 }
 
 function getCursorSnapshotPath(sessionId) {
-  const candidate = path.join(getCursorSnapshotDir(), `${sessionId}.jsonl`);
-  return fs.existsSync(candidate) ? candidate : null;
+  if (!isSafeCursorId(sessionId)) return null;
+  return existingContainedCursorFile(getCursorSnapshotDir(), `${sessionId}.jsonl`);
 }
 
 function getCursorSubagentPath(transcriptPath, agentId) {
-  if (!transcriptPath || !agentId) return null;
-  const candidate = path.join(path.dirname(transcriptPath), "subagents", `${agentId}.jsonl`);
-  return fs.existsSync(candidate) ? candidate : null;
+  if (!transcriptPath || !isSafeCursorId(agentId)) return null;
+  const subagentsDir = path.join(path.dirname(transcriptPath), "subagents");
+  return existingContainedCursorFile(subagentsDir, `${agentId}.jsonl`);
 }
 
 function getCursorSnapshotSubagentPath(sessionId, agentId) {
-  const candidate = path.join(getCursorSnapshotDir(), sessionId, "subagents", `${agentId}.jsonl`);
-  return fs.existsSync(candidate) ? candidate : null;
+  if (!isSafeCursorId(sessionId) || !isSafeCursorId(agentId)) return null;
+  const subagentsDir = path.join(getCursorSnapshotDir(), sessionId, "subagents");
+  return existingContainedCursorFile(subagentsDir, `${agentId}.jsonl`);
 }
 
 module.exports = {
@@ -161,6 +192,7 @@ module.exports = {
   getCursorSnapshotPath,
   getCursorSnapshotSubagentPath,
   getCursorSubagentPath,
+  isSafeCursorId,
   isCursorTranscriptPath,
   indexCursorChatDirs,
   readCursorChatMetadata,

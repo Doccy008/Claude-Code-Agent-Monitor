@@ -22,6 +22,7 @@ services:
       DASHBOARD_ENV_PATH: /app/config/.env
       DASHBOARD_LIVENESS_PROBE: 0
       CLAUDE_HOME: /home/node/.claude
+      DASHBOARD_CURSOR_HOME: /home/node/.cursor
       DASHBOARD_CODEX_HOME: /home/node/.codex
       DASHBOARD_ALLOWED_HOSTS: ${DASHBOARD_ALLOWED_HOSTS:-localhost,agent-monitor,ccam-nginx}
       DASHBOARD_TOKEN: ${DASHBOARD_TOKEN:-}
@@ -33,6 +34,7 @@ services:
       - ${CCAM_DATA_VOLUME:-ccam-data}:/app/data
       - ${CCAM_CONFIG_VOLUME:-ccam-config}:/app/config
       - ${CLAUDE_HOME:-~/.claude}:/home/node/.claude:${CCAM_AGENT_HOME_MODE:-ro}
+      - ${CURSOR_HOME:-~/.cursor}:/home/node/.cursor:${CCAM_AGENT_HOME_MODE:-ro}
       - ${CODEX_HOME:-~/.codex}:/home/node/.codex:${CCAM_AGENT_HOME_MODE:-ro}
       - ${CCAM_WORKSPACE_DIR:-.}:/workspace:${CCAM_WORKSPACE_MODE:-ro}
       - ${CCAM_SECRETS_DIR:-./deployments/secrets}:/run/ccam-secrets:ro

@@ -24,6 +24,7 @@ const TRANSCRIPT = path.join(
   SESSION_ID,
   `${SESSION_ID}.jsonl`
 );
+const SUBAGENT_TRANSCRIPT = path.join(path.dirname(TRANSCRIPT), "subagents", "worker-a.jsonl");
 
 process.env.DASHBOARD_DB_PATH = path.join(ROOT, "dashboard.db");
 process.env.DASHBOARD_DATA_DIR = DATA_DIR;
@@ -82,10 +83,9 @@ before(async () => {
       { type: "turn_ended", status: "completed" },
     ])
   );
-  const subagentPath = path.join(path.dirname(TRANSCRIPT), "subagents", "worker-a.jsonl");
-  fs.mkdirSync(path.dirname(subagentPath), { recursive: true });
+  fs.mkdirSync(path.dirname(SUBAGENT_TRANSCRIPT), { recursive: true });
   fs.writeFileSync(
-    subagentPath,
+    SUBAGENT_TRANSCRIPT,
     jsonl([
       { role: "user", message: { content: [{ type: "text", text: "Inspect routes" }] } },
       { role: "assistant", message: { content: [{ type: "text", text: "Done" }] } },
@@ -162,6 +162,39 @@ describe("Cursor local history", () => {
       1,
       "unchanged Cursor history should not be reparsed every poll"
     );
+
+    fs.appendFileSync(
+      SUBAGENT_TRANSCRIPT,
+      jsonl([
+        {
+          role: "assistant",
+          message: {
+            content: [
+              { type: "tool_use", id: "sub-tool-1", name: "Read", input: { path: "app.js" } },
+            ],
+          },
+        },
+        { type: "turn_ended", status: "completed" },
+      ])
+    );
+    const refreshedSubagent = await syncCursorSessions(require("../db"));
+    assert.equal(refreshedSubagent.backfilled, 1);
+    const subagent = stmts.getAgent.get(`${SESSION_ID}-cursor-worker-a`);
+    assert.equal(subagent.status, "completed");
+    assert.equal(JSON.parse(subagent.metadata).tool_count, 1);
+
+    const stale = new Date(Date.now() - 11 * 60 * 1000);
+    fs.utimesSync(TRANSCRIPT, stale, stale);
+    const completed = await syncCursorSessions(require("../db"));
+    assert.equal(completed.backfilled, 1);
+    assert.equal(stmts.getSession.get(SESSION_ID).status, "completed");
+    assert.equal(stmts.getAgent.get(`${SESSION_ID}-main`).status, "completed");
+
+    fs.appendFileSync(TRANSCRIPT, jsonl([{ type: "turn_started" }]));
+    const reactivated = await syncCursorSessions(require("../db"));
+    assert.equal(reactivated.backfilled, 1);
+    assert.equal(stmts.getSession.get(SESSION_ID).status, "active");
+    assert.equal(stmts.getAgent.get(`${SESSION_ID}-main`).status, "waiting");
   });
 
   it("renders Cursor conversation records and survives source cleanup", async () => {
@@ -179,6 +212,12 @@ describe("Cursor local history", () => {
       list.body.transcripts.map((item) => item.id),
       ["main", "worker-a"]
     );
+
+    const traversal = await request(
+      `/api/sessions/${SESSION_ID}/transcript?agent_id=${encodeURIComponent(`../../${SESSION_ID}`)}`
+    );
+    assert.equal(traversal.status, 200);
+    assert.deepEqual(traversal.body.messages, []);
   });
 
   it("includes Cursor in the Claude-compatible product scope", async () => {

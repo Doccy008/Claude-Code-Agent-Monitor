@@ -7752,7 +7752,7 @@ Object.assign(window.__WIKI_CONTENT_I18N.ko, {
     "Cursor는 Claude Code 범위에 기본 포함됩니다. Dashboard는 <code>~/.cursor</code> Transcript를 검색하고 제목, 프로젝트, Prompt, 턴, 서브에이전트를 백필하며 메인/서브에이전트 JSONL을 스냅샷하여 Cursor 정리 후에도 Conversation을 유지합니다. 네이티브 카드 부제목과 별도 편집 가능한 Cursor 요금표가 Grok, Composer 및 라우팅된 타사 모델을 지원합니다.",
 });
 Object.assign(window.__WIKI_CONTENT_I18N.plain.ko, {
-  "Claude Code, Cursor & Codex Agent Monitor": "Claude Code, Cursor & Codex Agent Monitor",
+  "Claude Code, Cursor & Codex Agent Monitor": "Claude Code, Cursor 및 Codex Agent Monitor",
   "A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures sessions, conversations, agents, tools, and provider-specific cost, persists them in SQLite, and streams updates to React over WebSocket.":
     "Claude Code, Cursor, Codex를 위한 전문 로컬 모니터링 플랫폼입니다. 세션, 대화, 에이전트, 도구 및 공급자별 비용을 수집해 SQLite에 저장하고 WebSocket으로 React에 업데이트를 전송합니다.",
   "Cursor Monitoring": "Cursor 모니터링",

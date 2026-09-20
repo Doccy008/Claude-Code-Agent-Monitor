@@ -33,6 +33,7 @@ const {
   getCursorSnapshotPath,
   getCursorSnapshotSubagentPath,
   getCursorSubagentPath,
+  isSafeCursorId,
 } = require("../lib/cursor-home");
 
 const router = Router();
@@ -947,6 +948,7 @@ function resolveSessionTranscriptPath(session, sessionId, agentId, runId) {
         ? session.transcript_path
         : null;
     if (agentId && agentId !== "main") {
+      if (!isSafeCursorId(agentId)) return null;
       return (
         getCursorSubagentPath(liveMain, agentId) ||
         getCursorSnapshotSubagentPath(sessionId, agentId)

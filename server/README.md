@@ -475,7 +475,7 @@ The OpenAPI spec is generated from `server/openapi.js` (`createOpenApiSpec()`), 
 
 **Prometheus metrics (`GET /api/metrics`).** Exposes the dashboard's live counters — `ccam_sessions`/`ccam_agents` by status, `ccam_events_total`, `ccam_tokens_total` by kind, `ccam_websocket_clients`, `ccam_remote_sources` by enabled state, `ccam_process_uptime_seconds`/`ccam_process_resident_memory_bytes`, and `ccam_build_info{version}` — in the Prometheus v0.0.4 text-exposition format for scraping into Prometheus / Grafana (`server/routes/metrics.js`). Values come from the same `server/db.js` prepared statements the REST API uses, so they match the UI; status series are enumerated so a gauge never drops out of the exposition at zero. The route is read-only and, being under `/api`, sits behind both the Host-header (DNS-rebinding) guard and the optional `DASHBOARD_TOKEN` guard: a non-loopback scraper (e.g. Prometheus in Docker via `host.docker.internal`) must be allowlisted with `DASHBOARD_ALLOWED_HOSTS` or it gets `403 EBADHOST`, and must send the token when one is set. A ready-to-run Prometheus + Grafana stack with four auto-provisioned dashboards (default home **CCAM — Overview**) lives in [`monitoring/`](../monitoring/README.md).
 
-**Data scope (`?sources=` and `?providers=`).** `GET /api/sessions`, `/api/events`, `/api/agents`, `/api/stats`, `/api/analytics`, `/api/workflows`, workflow drill-ins, and pricing cost endpoints accept an optional source list and a provider list (`claude`, `codex`, or both). The filters compose, so a single Settings choice immediately scopes every page by both machine and product. `server/lib/source-filter.js` and `server/lib/provider-filter.js` build the SQL predicates; `/api/stats` and `/api/analytics` use their scoped aggregates only when a filter is present. `GET /api/sessions/facets` returns both `sources` and `providers`.
+**Data scope (`?sources=` and `?providers=`).** `GET /api/sessions`, `/api/events`, `/api/agents`, `/api/stats`, `/api/analytics`, `/api/workflows`, workflow drill-ins, and pricing cost endpoints accept an optional source list and provider list (`claude`, `cursor`, `codex`, or a comma-separated combination). The `claude` product scope intentionally expands to Claude Code + Cursor; direct `cursor` requests remain available for stored-provider drill-ins. The filters compose, so a single Settings choice immediately scopes every page by both machine and product. `server/lib/source-filter.js` and `server/lib/provider-filter.js` build the SQL predicates; `/api/stats` and `/api/analytics` use their scoped aggregates only when a filter is present. `GET /api/sessions/facets` returns both `sources` and `providers`.
 
 **Session project filter (`cwd=`).** `GET /api/sessions` accepts one or more exact working directories. Repeat the query key (`?cwd=/work/a&cwd=/work/b`) to include sessions from any selected project; this OR filter composes with `status`, `q`, `sources`, pagination, and `sort_by` / `sort_desc`. The Sessions page uses it for its searchable checkbox project picker, so multi-project filtering stays server-paginated.
 
@@ -624,6 +624,9 @@ Response (`200`, even when individual items were skipped/rejected — see
 | `GET`    | `/api/pricing`            | List pricing rules                     |
 | `PUT`    | `/api/pricing`            | Create/update a pricing rule           |
 | `DELETE` | `/api/pricing/:pattern`   | Delete pricing rule                    |
+| `GET`    | `/api/pricing/cursor`     | List the separate Cursor rate card     |
+| `PUT`    | `/api/pricing/cursor`     | Create/update a Cursor rate row        |
+| `DELETE` | `/api/pricing/cursor/:pattern` | Delete a Cursor rate row          |
 | `GET`    | `/api/pricing/gpt`        | List the separate OpenAI GPT rate card |
 | `PUT`    | `/api/pricing/gpt`        | Create/update an OpenAI GPT rate row |
 | `DELETE` | `/api/pricing/gpt/:pattern` | Delete an OpenAI GPT rate row      |
@@ -692,7 +695,7 @@ Because sync runs non-interactively (`ssh -o BatchMode=yes`), the connection mus
 | `POST` | `/api/settings/reimport`       | Re-import legacy sessions from `~/.claude/`      |
 | `POST` | `/api/settings/reinstall-hooks`| Reinstall Claude Code hooks                      |
 | `POST` | `/api/settings/install-hooks` | Install selected Claude Code and/or Codex hook sets; preserves unrelated hook entries |
-| `POST` | `/api/settings/reset-pricing`  | Reset Claude, Codex, or both pricing tables to defaults |
+| `POST` | `/api/settings/reset-pricing`  | Reset Claude, Cursor, Codex, or all pricing tables to defaults |
 | `GET`  | `/api/settings/export`         | Export all data (sessions, agents, events, token_usage, workflows, dashboard_runs, alert_rules, model_pricing, cursor_model_pricing, gpt_model_pricing) as one versioned JSON attachment |
 | `POST` | `/api/settings/import`         | Restore one bundle up to 25 MiB from `/export`. Multipart `file`, or JSON `{ path }` (server reads it). Idempotent + non-destructive: sessions already present are skipped whole |
 | `POST` | `/api/settings/cleanup`        | Abandon stale sessions and purge old data        |

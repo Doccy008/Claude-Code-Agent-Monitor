@@ -80,6 +80,25 @@ function isoFromMs(value, fallback) {
   return fallback;
 }
 
+/** Return the later valid ISO timestamp, preserving the fallback on bad input. */
+function latestIso(first, second) {
+  const firstMs = Date.parse(first);
+  const secondMs = Date.parse(second);
+  if (!Number.isFinite(firstMs)) return second;
+  if (!Number.isFinite(secondMs)) return first;
+  return firstMs >= secondMs ? first : second;
+}
+
+/** Parse stored metadata without letting an old malformed row stop discovery. */
+function parseMetadata(value) {
+  try {
+    const parsed = value ? JSON.parse(value) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function copyIfNewer(source, destination) {
   let sourceStat;
   try {
@@ -151,6 +170,7 @@ function readCursorSubagent(filePath) {
   }
   let firstPrompt = null;
   let toolCount = 0;
+  let terminalStatus = null;
   for (const line of body.split("\n")) {
     if (!line.trim()) continue;
     let entry;
@@ -162,8 +182,11 @@ function readCursorSubagent(filePath) {
     if (entry.role === "user" && !firstPrompt) firstPrompt = cursorTextBlocks(entry)[0] || null;
     const content = Array.isArray(entry?.message?.content) ? entry.message.content : [];
     toolCount += content.filter((block) => block?.type === "tool_use").length;
+    if (entry.type === "turn_ended") {
+      terminalStatus = entry.status === "error" ? "error" : "completed";
+    }
   }
-  return { firstPrompt, toolCount };
+  return { firstPrompt, toolCount, terminalStatus };
 }
 
 function importCursorSubagents(dbModule, sessionId, transcriptPath, sessionActive) {
@@ -181,27 +204,95 @@ function importCursorSubagents(dbModule, sessionId, transcriptPath, sessionActiv
     if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
     const cursorAgentId = path.basename(entry.name, ".jsonl");
     const agentId = `${sessionId}-cursor-${cursorAgentId}`;
-    if (stmts.getAgent.get(agentId)) continue;
-    const parsed = readCursorSubagent(path.join(subagentsDir, entry.name));
-    const task = parsed?.firstPrompt || null;
-    const label = promptLabel(task) || `Cursor subagent ${cursorAgentId.slice(0, 8)}`;
-    stmts.insertAgent.run(
-      agentId,
-      sessionId,
-      label,
-      "subagent",
-      "cursor",
-      sessionActive ? "working" : "completed",
-      task,
-      mainAgentId,
-      JSON.stringify({ cursor_agent_id: cursorAgentId, tool_count: parsed?.toolCount || 0 })
-    );
-    if (!sessionActive) {
-      db.prepare(
-        "UPDATE agents SET ended_at = COALESCE(ended_at, started_at), updated_at = started_at WHERE id = ?"
-      ).run(agentId);
+    const filePath = path.join(subagentsDir, entry.name);
+    const fingerprint = statFingerprint(filePath);
+    const existing = stmts.getAgent.get(agentId);
+    const currentMeta = parseMetadata(existing?.metadata);
+    let parsed = null;
+    if (!existing || currentMeta.cursor_fingerprint !== fingerprint) {
+      parsed = readCursorSubagent(filePath);
     }
-    changed++;
+    const task = parsed?.firstPrompt || existing?.task || null;
+    const toolCount = parsed?.toolCount ?? currentMeta.tool_count ?? 0;
+    const terminalStatus = parsed?.terminalStatus ?? currentMeta.cursor_terminal_status ?? null;
+    const status = terminalStatus || (sessionActive ? "working" : "completed");
+    const label = promptLabel(task) || `Cursor subagent ${cursorAgentId.slice(0, 8)}`;
+    const metadata = JSON.stringify({
+      ...currentMeta,
+      cursor_agent_id: cursorAgentId,
+      cursor_fingerprint: fingerprint,
+      cursor_terminal_status: terminalStatus,
+      tool_count: toolCount,
+    });
+    const endedAt =
+      status === "working" || status === "waiting"
+        ? null
+        : isoFromMs(
+            (() => {
+              try {
+                return fs.statSync(filePath).mtimeMs;
+              } catch {
+                return Date.now();
+              }
+            })(),
+            new Date().toISOString()
+          );
+
+    if (!existing) {
+      stmts.insertAgent.run(
+        agentId,
+        sessionId,
+        label,
+        "subagent",
+        "cursor",
+        status,
+        task,
+        mainAgentId,
+        metadata
+      );
+      if (endedAt) {
+        db.prepare("UPDATE agents SET ended_at = ?, updated_at = ? WHERE id = ?").run(
+          endedAt,
+          endedAt,
+          agentId
+        );
+      }
+      changed++;
+      continue;
+    }
+
+    const update = db
+      .prepare(
+        `UPDATE agents SET
+           name = ?, subagent_type = 'cursor', status = ?, task = ?,
+           parent_agent_id = ?, metadata = ?, ended_at = ?, updated_at = ?
+         WHERE id = ? AND (
+           COALESCE(name, '') != COALESCE(?, '') OR
+           COALESCE(subagent_type, '') != 'cursor' OR
+           status != ? OR
+           COALESCE(task, '') != COALESCE(?, '') OR
+           COALESCE(parent_agent_id, '') != COALESCE(?, '') OR
+           COALESCE(metadata, '') != COALESCE(?, '') OR
+           COALESCE(ended_at, '') != COALESCE(?, '')
+         )`
+      )
+      .run(
+        label,
+        status,
+        task,
+        mainAgentId,
+        metadata,
+        endedAt,
+        endedAt || existing.updated_at,
+        agentId,
+        label,
+        status,
+        task,
+        mainAgentId,
+        metadata,
+        endedAt
+      );
+    changed += update.changes;
   }
   return changed;
 }
@@ -247,7 +338,10 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
   const existing = stmts.getSession.get(sessionId);
   const recent = Date.now() - stat.mtimeMs < RECENT_SESSION_MS;
   const createdAt = isoFromMs(meta?.createdAtMs, stat.birthtime.toISOString());
-  const updatedAt = isoFromMs(meta?.updatedAtMs, stat.mtime.toISOString());
+  const updatedAt = latestIso(
+    isoFromMs(meta?.updatedAtMs, stat.mtime.toISOString()),
+    stat.mtime.toISOString()
+  );
   const firstPrompt = prompts[0] || null;
   const nativeTitle = trimPrompt(meta?.title);
   const name = nativeTitle || promptLabel(firstPrompt) || `Cursor session ${sessionId.slice(0, 8)}`;
@@ -260,6 +354,7 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
     const metadata = JSON.stringify({
       imported: true,
       cursor: true,
+      cursor_ingest_recent: recent,
       turn_count: prompts.length,
       user_messages: prompts.length,
       has_conversation: meta?.hasConversation === true,
@@ -281,19 +376,32 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
       null,
       JSON.stringify({ cursor: true })
     );
+    if (!recent) {
+      db.prepare("UPDATE agents SET ended_at = ?, updated_at = ? WHERE id = ?").run(
+        updatedAt,
+        updatedAt,
+        `${sessionId}-main`
+      );
+    }
     created = true;
     changed = true;
   } else {
-    const currentMeta = (() => {
-      try {
-        return existing.metadata ? JSON.parse(existing.metadata) : {};
-      } catch {
-        return {};
-      }
-    })();
+    const currentMeta = parseMetadata(existing.metadata);
+    const shouldComplete = !recent && existing.status === "active";
+    const shouldReactivate =
+      recent &&
+      currentMeta.cursor_ingest_recent === false &&
+      (existing.status === "completed" || existing.status === "abandoned");
+    const desiredStatus = shouldComplete
+      ? "completed"
+      : shouldReactivate
+        ? "active"
+        : existing.status;
+    const desiredEndedAt = shouldComplete ? updatedAt : shouldReactivate ? null : existing.ended_at;
     const nextMeta = {
       ...currentMeta,
       cursor: true,
+      cursor_ingest_recent: recent,
       turn_count: prompts.length || currentMeta.turn_count || 0,
       user_messages: prompts.length || currentMeta.user_messages || 0,
       has_conversation: meta?.hasConversation === true || currentMeta.has_conversation === true,
@@ -307,6 +415,8 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
       .prepare(
         `UPDATE sessions SET
            name = ?,
+           status = ?,
+           ended_at = ?,
            cwd = COALESCE(?, cwd),
            model = COALESCE(?, model),
            provider = 'cursor',
@@ -316,6 +426,8 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
            updated_at = CASE WHEN updated_at < ? THEN ? ELSE updated_at END
          WHERE id = ? AND (
            COALESCE(name, '') != COALESCE(?, '') OR
+           status != ? OR
+           COALESCE(ended_at, '') != COALESCE(?, '') OR
            (? IS NOT NULL AND COALESCE(cwd, '') != ?) OR
            (? IS NOT NULL AND COALESCE(model, '') != ?) OR
            provider != 'cursor' OR
@@ -325,6 +437,8 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
       )
       .run(
         desiredName,
+        desiredStatus,
+        desiredEndedAt,
         cwd,
         model,
         transcriptPath,
@@ -335,6 +449,8 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
         updatedAt,
         sessionId,
         desiredName,
+        desiredStatus,
+        desiredEndedAt,
         cwd,
         cwd,
         model,
@@ -357,6 +473,13 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
         null,
         JSON.stringify({ cursor: true })
       );
+      if (!recent) {
+        db.prepare("UPDATE agents SET ended_at = ?, updated_at = ? WHERE id = ?").run(
+          updatedAt,
+          updatedAt,
+          `${sessionId}-main`
+        );
+      }
       changed = true;
       main = stmts.getAgent.get(`${sessionId}-main`);
     } else {
@@ -365,32 +488,44 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
         /^Cursor · (?:Cursor session )?[0-9a-f]{8}$/i.test(main.name || "");
       const desiredMainName = autoMain ? `Cursor · ${desiredName}` : main.name;
       const desiredTask = main.task || firstPrompt;
-      const currentAgentMeta = (() => {
-        try {
-          return main.metadata ? JSON.parse(main.metadata) : {};
-        } catch {
-          return {};
-        }
-      })();
+      const currentAgentMeta = parseMetadata(main.metadata);
       const nextAgentMeta = JSON.stringify({ ...currentAgentMeta, cursor: true });
+      const desiredMainStatus = shouldComplete
+        ? main.status === "error"
+          ? "error"
+          : "completed"
+        : shouldReactivate && main.status !== "error"
+          ? "waiting"
+          : main.status;
+      const desiredMainEndedAt = shouldComplete
+        ? updatedAt
+        : shouldReactivate
+          ? null
+          : main.ended_at;
       const mainUpdate = db
         .prepare(
-          `UPDATE agents SET name = ?, task = ?, metadata = ?, updated_at = ?
+          `UPDATE agents SET name = ?, status = ?, task = ?, metadata = ?, ended_at = ?, updated_at = ?
            WHERE id = ? AND (
              COALESCE(name, '') != COALESCE(?, '') OR
+             status != ? OR
              COALESCE(task, '') != COALESCE(?, '') OR
-             COALESCE(metadata, '') != COALESCE(?, '')
+             COALESCE(metadata, '') != COALESCE(?, '') OR
+             COALESCE(ended_at, '') != COALESCE(?, '')
            )`
         )
         .run(
           desiredMainName,
+          desiredMainStatus,
           desiredTask,
           nextAgentMeta,
+          desiredMainEndedAt,
           updatedAt,
           main.id,
           desiredMainName,
+          desiredMainStatus,
           desiredTask,
-          nextAgentMeta
+          nextAgentMeta,
+          desiredMainEndedAt
         );
       changed = mainUpdate.changes > 0 || changed;
     }
@@ -401,7 +536,13 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
     const previewUpdate = stmts.updateSessionCardPromptPreview.run(preview, sessionId, preview);
     changed = previewUpdate.changes > 0 || changed;
   }
-  const subagents = importCursorSubagents(dbModule, sessionId, transcriptPath, recent);
+  const refreshedSession = stmts.getSession.get(sessionId);
+  const subagents = importCursorSubagents(
+    dbModule,
+    sessionId,
+    transcriptPath,
+    refreshedSession?.status === "active" && recent
+  );
   changed = subagents > 0 || changed;
   snapshotCursorTranscript(transcriptPath, sessionId);
 
@@ -418,10 +559,19 @@ async function syncCursorSessions(dbModule, options = {}) {
     const chatDir = sessionId ? chatDirs.get(sessionId) || null : null;
     const fingerprint = cursorSessionFingerprint(transcriptPath, chatDir);
     const existing = sessionId ? dbModule.stmts.getSession.get(sessionId) : null;
+    let recencyExpired = false;
+    if (existing?.status === "active") {
+      try {
+        recencyExpired = Date.now() - fs.statSync(transcriptPath).mtimeMs >= RECENT_SESSION_MS;
+      } catch {
+        recencyExpired = false;
+      }
+    }
     if (
       syncFingerprints.get(transcriptPath) === fingerprint &&
       existing?.provider === "cursor" &&
-      existing.transcript_path === transcriptPath
+      existing.transcript_path === transcriptPath &&
+      !recencyExpired
     ) {
       counters.skipped++;
       continue;

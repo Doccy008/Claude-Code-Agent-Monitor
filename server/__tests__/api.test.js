@@ -206,6 +206,9 @@ describe("OpenAPI / Swagger", () => {
     for (const pathName of EXPECTED_API_PATHS) {
       assert.ok(res.body.paths[pathName], `Expected path ${pathName} to be documented`);
     }
+    const importResponse = res.body.components.schemas.ImportResponse;
+    assert.ok(importResponse.required.includes("cursor_model_pricing"));
+    assert.equal(importResponse.properties.cursor_model_pricing.type, "integer");
   });
 
   it("should serve Swagger UI", async () => {

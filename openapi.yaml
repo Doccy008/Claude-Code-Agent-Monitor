@@ -2158,6 +2158,7 @@ components:
         - dashboard_runs
         - alert_rules
         - model_pricing
+        - cursor_model_pricing
         - gpt_model_pricing
         - errors
       description: Per-table counts from restoring an export bundle. Session-scoped counts are rows newly inserted; sessions_skipped counts sessions already present (skipped whole to stay idempotent).
@@ -2188,6 +2189,8 @@ components:
         alert_rules:
           type: integer
         model_pricing:
+          type: integer
+        cursor_model_pricing:
           type: integer
         gpt_model_pricing:
           type: integer
