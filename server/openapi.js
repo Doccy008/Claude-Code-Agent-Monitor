@@ -607,6 +607,11 @@ function createOpenApiSpec() {
           type: "object",
           required: ["type", "content"],
           properties: {
+            id: {
+              type: "string",
+              description:
+                "Stable provider-local message identity when available. Cursor uses it while prompt history hands off to canonical JSONL.",
+            },
             type: {
               type: "string",
               enum: ["user", "assistant", "session_event"],
@@ -678,6 +683,11 @@ function createOpenApiSpec() {
               minimum: 0,
               description:
                 "JSONL line number of the oldest returned message — pass back as `before` to page backwards.",
+            },
+            refresh: {
+              type: "boolean",
+              description:
+                "When true, messages are a latest-window refresh to merge by message id rather than a strict append-only page.",
             },
           },
         },

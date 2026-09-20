@@ -734,6 +734,9 @@ components:
         - type
         - content
       properties:
+        id:
+          type: string
+          description: Stable provider-local message identity when available. Cursor uses it while prompt history hands off to canonical JSONL.
         type:
           type: string
           enum:
@@ -815,6 +818,9 @@ components:
           type: integer
           minimum: 0
           description: JSONL line number of the oldest returned message — pass back as `before` to page backwards.
+        refresh:
+          type: boolean
+          description: When true, messages are a latest-window refresh to merge by message id rather than a strict append-only page.
     SessionStatsResponse:
       type: object
       description: Aggregated counts powering the SessionOverview panel on the Session Detail page. All aggregation runs in SQL.
@@ -5287,7 +5293,7 @@ paths:
       tags:
         - Sessions
       summary: Stream messages from a specific transcript
-      description: 'Returns parsed, renderable messages from a JSONL transcript with cursor-based pagination, reading the live file under ~/.claude/projects and falling back to the durable import-time snapshot. Pass `agent_id` to select a specific subagent or compaction transcript (default is the session''s main transcript). Pagination cursors are mutually exclusive: `after` returns messages strictly newer than a JSONL line number (incremental live updates on `new_event`), `before` returns messages strictly older than a line (load-on-scroll-up), and `offset` is legacy start-offset paging. `last_line`/`first_line` are the JSONL line numbers of the newest/oldest returned message — feed them back as `after`/`before`. When the session, transcript file, or path cannot be found the endpoint degrades gracefully to an empty result (`messages: []`, `total: 0`, `has_more: false`) rather than erroring. Read-only, no side effects.'
+      description: 'Returns parsed, renderable messages from a provider transcript with cursor-based pagination, reading the live file and falling back to the durable import-time snapshot. Cursor main sessions additionally expose prompt history before JSONL exists; an incremental response with `refresh: true` is a latest window whose stable message ids should be merged in place during prompt-to-transcript hand-off. Pass `agent_id` to select a specific subagent or compaction transcript (default is the session''s main transcript). Pagination cursors are mutually exclusive: `after` reads live updates, `before` returns messages older than a line (load-on-scroll-up), and `offset` is legacy start-offset paging. `last_line`/`first_line` are the newest/oldest returned cursors. When the session, transcript file, or path cannot be found the endpoint degrades gracefully to an empty result (`messages: []`, `total: 0`, `has_more: false`) rather than erroring. Read-only, no side effects.'
       operationId: getSessionTranscript
       parameters:
         - $ref: '#/components/parameters/SessionIdPath'

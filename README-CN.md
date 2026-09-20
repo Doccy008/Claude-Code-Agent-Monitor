@@ -130,9 +130,9 @@ graph LR
 
 ### Cursor 支持
 
-Cursor 无需单独设置：启动页选择 **Claude Code** 时会开箱即用地启用 Cursor 监控。Dashboard 会识别 `.cursor` transcript 路径，扫描 `~/.cursor/projects/*/agent-transcripts`，关联 `~/.cursor/chats` 元数据，并为既有会话回填原生标题、项目、提示预览、轮次和子 Agent。主会话与子 Agent JSONL 会保存到 Dashboard 数据目录，因此即使 Cursor 清理原历史，对话仍可查看。
+Cursor 无需单独设置：启动页选择 **Claude Code** 时会开箱即用地启用 Cursor 监控。文件系统监听器会在 `agent` 启动时立即发现 `~/.cursor/chats/*/<session>/meta.json`，无需等待 Transcript；提交 Prompt 后，`prompt_history.json` 的变化会立即更新会话卡片、工作状态与 Conversation。随后 `~/.cursor/projects/*/agent-transcripts` 出现时，Dashboard 会无重复地合并待处理的用户消息，补充原生标题、项目、轮次与子 Agent，并保存主会话及子 Agent JSONL 快照。
 
-Cursor 卡片显示 `Cursor · <标题>` 以及项目、轮次和子 Agent 副标题。设置页提供独立可编辑的 **Cursor 定价**，覆盖 Cursor Grok、Composer 与已公布的第三方模型，不会误用 Claude 或 Codex 费率。可用 `DASHBOARD_CURSOR_HOME` 覆盖来源目录，并用 `DASHBOARD_CURSOR_SYNC_MS` 调整扫描周期。
+Cursor 卡片显示 `Cursor · <标题>` 以及项目、轮次和子 Agent 副标题。设置页提供独立可编辑的 **Cursor 定价**，覆盖 Cursor Grok、Composer 与已公布的第三方模型，不会误用 Claude 或 Codex 费率。可用 `DASHBOARD_CURSOR_HOME` 覆盖来源目录，并用 `DASHBOARD_CURSOR_SYNC_MS` 调整轮询兜底；设为 `0` 只会禁用周期扫描，实时文件系统监听仍保持启用。
 
 ### 多语言支持（i18n）
 
@@ -653,7 +653,7 @@ flowchart LR
 | `DASHBOARD_LIVENESS_IDLE_SECONDS` | `60` | **看门狗节拍**存活性回收的空闲门槛：只有当会话的 Transcript 至少有这么长时间未被写入时（磁盘上没有 Transcript 时以最后一次 Hook 写入为后备时钟），才会将其标记为完成，因此回合中或刚 resume 的会话绝不会因一次瞬时的探测偏差而消失。启动时的回收跳过该门槛——boot 时由探测单独决定，因此启动前一刻退出的会话会立即清除 |
 | `DASHBOARD_SESSION_SYNC_MS` | `30000` | 持续 `~/.claude/projects` 后台同步的轮询间隔（毫秒），用于显示启动后才加入、其会话从不经过 Hook 流入的项目。无论如何 `fs.watch` 监听器都会近乎即时触发；该轮询是安全兜底（监听器可能错过事件 / 在网络文件系统上不触发）。设为 `0` 可禁用轮询，同时让监听器保持运行 |
 | `DASHBOARD_CURSOR_HOME` | `~/.cursor` | 可选的 Cursor 原生主目录。Dashboard 读取 `projects/*/agent-transcripts`、关联 `chats` 元数据、回填已有会话，并在 Dashboard 数据目录中保存持久会话快照。 |
-| `DASHBOARD_CURSOR_SYNC_MS` | `5000` | 基于指纹的 Cursor 历史发现安全兜底间隔（毫秒）。兼容的实时 Hook 事件仍会立即采集；设为 `0` 可禁用周期扫描。 |
+| `DASHBOARD_CURSOR_SYNC_MS` | `5000` | 基于指纹的 Cursor Chat/Transcript 发现安全兜底间隔（毫秒）。文件系统监听仍会立即采集 CLI 启动与 Prompt 变化；`0` 只禁用周期扫描。 |
 | `DASHBOARD_CODEX_HOME` | `CODEX_HOME` 或 `~/.codex` | 可选的本地 Codex 状态目录。在设置中保存新位置会持久化此仪表盘专用覆盖、重新启用实时监视，并立即扫描新的 `sessions/` 树。 |
 | `DASHBOARD_CODEX_SYNC_MS` | `4000` | 仅追加 Codex rollout 的安全兜底轮询间隔（毫秒）。Codex Hook 会立即触发同一个增量采集器；设为 `0` 仅禁用轮询，在可用时仍保留文件系统监听器。 |
 | `DASHBOARD_CODEX_MAX_ATTEMPTS` | `5` | Codex 扫描针对同一个**未发生变化**的 rollout 连续尝试采集的失败次数上限，超出后便不再重试。扫描会刻意重新排队一个读取失败的 rollout，使瞬时故障（`SQLITE_BUSY`、写了一半的记录）在下一轮恢复；若不设上限，*永久性*故障会在整个进程生命周期内不断重复 —— 按 `DASHBOARD_CODEX_SYNC_MS` 默认的 4 秒计算，每个文件每天约 21,600 次尝试，每次都在单一 Node 线程上写一行日志。该计数包含第一次尝试、按文件独立统计，并在文件的大小或 mtime 发生变化时完全恢复，因此仅仅是写了一半的 rollout 仍能自行恢复。耗尽预算的那一次尝试会记录一条日志并注明上限。若慢速或不稳定的卷需要超过几轮扫描才能稳定，可调高此值 |

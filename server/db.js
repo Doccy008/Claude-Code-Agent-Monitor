@@ -1891,7 +1891,7 @@ const stmts = {
      FROM events
      WHERE session_id = ? AND event_type IN (
        'TaskCreated', 'TaskCompleted',
-       'UserPromptSubmit', 'Stop', 'SubagentStop', 'SessionEnd', 'Interrupted'
+       'UserPromptSubmit', 'cursor_user_message', 'Stop', 'SubagentStop', 'SessionEnd', 'Interrupted'
      )
      ORDER BY created_at ASC, id ASC`
   ),

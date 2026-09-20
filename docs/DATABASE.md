@@ -175,7 +175,7 @@ Tracks Claude Code, Cursor, and Codex sessions (one per CLI invocation or backgr
 
 Session rows also retain optional `repo_remote_url` metadata: the first sanitized remote supplied by a collector wins. URL userinfo, query strings, and fragments are removed; malformed URLs are discarded before session or event persistence.
 
-> **Cursor:** Native rows discovered from `~/.cursor/projects/*/agent-transcripts` are stored with `provider = 'cursor'`. Their live path and dashboard-owned snapshot remain separately resolvable, so conversation history survives source cleanup and pricing uses only the Cursor rate card.
+> **Cursor:** Native rows are first discovered from `~/.cursor/chats/*/<session>/meta.json` and stored with `provider = 'cursor'` even while `transcript_path` is null. Prompt history updates that row immediately; the later `~/.cursor/projects/*/agent-transcripts` path and dashboard-owned snapshot remain separately resolvable, so conversation history survives source cleanup and pricing uses only the Cursor rate card.
 
 ```sql
 CREATE TABLE sessions (

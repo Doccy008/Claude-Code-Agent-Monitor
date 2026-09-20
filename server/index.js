@@ -1,6 +1,6 @@
 /**
  * @file Sets up the Express server, API routes, WebSocket, production client,
- * and non-blocking Claude/Codex transcript synchronizers and maintenance jobs.
+ * and non-blocking Claude/Cursor/Codex synchronizers and maintenance jobs.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -550,48 +550,133 @@ function startBackgroundServices() {
 }
 
 /**
- * Keep Cursor's native transcript tree in sync. Hooks provide the low-latency
- * event path; this bounded poll supplies startup backfill, catches sessions
- * created while CCAM was offline, and refreshes native titles/prompt history.
+ * Keep Cursor's native chat and transcript trees in sync. Cursor writes chat
+ * metadata at CLI startup and prompt history on submit, before its transcript
+ * exists; filesystem watchers make those changes visible immediately. A short
+ * poll remains a safety net for missed/coalesced filesystem notifications.
  */
-function startCursorSessionSync(broadcast) {
+function startCursorSessionSync(broadcast, options = {}) {
   const POLL_MS = process.env.DASHBOARD_CURSOR_SYNC_MS
     ? Number(process.env.DASHBOARD_CURSOR_SYNC_MS)
     : 5_000;
-  if (!Number.isFinite(POLL_MS) || POLL_MS <= 0) return;
-
-  const dbModule = require("./db");
+  const fs = require("fs");
+  const path = require("path");
+  const dbModule = options.dbModule || require("./db");
+  const { getCursorChatsDir, getCursorHome, getCursorProjectsDir } = require("./lib/cursor-home");
   const { syncCursorSessions } = require("./lib/cursor-ingest");
   let running = false;
   let queued = false;
+  let closed = false;
+  let debounce = null;
+  let pollTimer = null;
+  let bootTimer = null;
+  const watchers = new Map();
+
   const tick = () => {
+    if (closed) return Promise.resolve();
     if (running) {
       queued = true;
-      return;
+      return Promise.resolve();
     }
     running = true;
-    syncCursorSessions(dbModule, {
+    return syncCursorSessions(dbModule, {
       onSession(result) {
         if (!result.session) return;
         broadcast(result.created ? "session_created" : "session_updated", result.session);
         for (const agent of dbModule.stmts.listAgentsBySession.all(result.session.id)) {
-          broadcast("agent_updated", agent);
+          broadcast(result.created ? "agent_created" : "agent_updated", agent);
         }
+        for (const event of result.events || []) broadcast("new_event", event);
       },
     })
       .catch((err) => console.warn("Cursor session sync tick failed:", err?.message || err))
       .finally(() => {
         running = false;
-        if (queued) {
+        if (queued && !closed) {
           queued = false;
           tick();
         }
       });
   };
-  const boot = setTimeout(tick, 750);
-  if (boot.unref) boot.unref();
-  const timer = setInterval(tick, POLL_MS);
-  if (timer.unref) timer.unref();
+
+  function scheduleTick() {
+    if (closed || debounce) return;
+    debounce = setTimeout(() => {
+      debounce = null;
+      refreshWatchers();
+      tick();
+    }, 100);
+    if (debounce.unref) debounce.unref();
+  }
+
+  function addWatcher(dir, recursive = false) {
+    if (watchers.has(dir) || !fs.existsSync(dir)) return;
+    try {
+      const watcher = fs.watch(dir, { recursive }, scheduleTick);
+      watcher.on("error", () => {
+        watcher.close();
+        watchers.delete(dir);
+      });
+      if (watcher.unref) watcher.unref();
+      watchers.set(dir, watcher);
+    } catch {
+      // Cursor may rotate a directory between discovery and watch setup. The
+      // home watcher or periodic poll will retry without affecting the server.
+    }
+  }
+
+  function walkDirectories(root, depth) {
+    if (depth < 0 || !fs.existsSync(root)) return;
+    addWatcher(root);
+    if (depth === 0) return;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) walkDirectories(path.join(root, entry.name), depth - 1);
+    }
+  }
+
+  function refreshWatchers() {
+    if (closed) return;
+    const cursorHome = getCursorHome();
+    const chatsDir = getCursorChatsDir();
+    const projectsDir = getCursorProjectsDir();
+    addWatcher(cursorHome);
+    const recursiveOk = process.platform === "darwin" || process.platform === "win32";
+    if (recursiveOk) {
+      addWatcher(chatsDir, true);
+      addWatcher(projectsDir, true);
+    } else {
+      // Linux does not support recursive fs.watch. Chat depth covers
+      // workspace/session files; project depth covers transcript/subagents.
+      walkDirectories(chatsDir, 2);
+      walkDirectories(projectsDir, 4);
+    }
+  }
+
+  refreshWatchers();
+  bootTimer = setTimeout(tick, options.bootDelayMs ?? 100);
+  if (bootTimer.unref) bootTimer.unref();
+  if (Number.isFinite(POLL_MS) && POLL_MS > 0) {
+    pollTimer = setInterval(tick, POLL_MS);
+    if (pollTimer.unref) pollTimer.unref();
+  }
+
+  return {
+    tick,
+    close() {
+      closed = true;
+      if (bootTimer) clearTimeout(bootTimer);
+      if (pollTimer) clearInterval(pollTimer);
+      if (debounce) clearTimeout(debounce);
+      for (const watcher of watchers.values()) watcher.close();
+      watchers.clear();
+    },
+  };
 }
 
 /**
@@ -1547,6 +1632,7 @@ module.exports = {
   createApp,
   startServer,
   startBackgroundServices,
+  startCursorSessionSync,
   codexHomeChangeTriggersSweep,
   createIngestRetryBudget,
   repairInflatedTokenTotals,

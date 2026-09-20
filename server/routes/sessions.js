@@ -33,7 +33,9 @@ const {
   getCursorSnapshotPath,
   getCursorSnapshotSubagentPath,
   getCursorSubagentPath,
+  findCursorChatDir,
   isSafeCursorId,
+  readCursorChatMetadata,
 } = require("../lib/cursor-home");
 
 const router = Router();
@@ -642,17 +644,19 @@ router.get("/:id/transcripts", async (req, res) => {
       .all(session.id)
       .find((agent) => agent.type === "main");
     const mainPath = resolveSessionTranscriptPath(session, session.id, "main", null);
-    const transcripts = mainPath
-      ? [
-          {
-            id: "main",
-            name: session.provider === "cursor" ? "Cursor" : "Codex",
-            type: "main",
-            has_transcript: true,
-            db_agent_id: mainAgent?.id || null,
-          },
-        ]
-      : [];
+    const hasCursorChat = session.provider === "cursor" && !!findCursorChatDir(session.id);
+    const transcripts =
+      mainPath || hasCursorChat
+        ? [
+            {
+              id: "main",
+              name: session.provider === "cursor" ? "Cursor" : "Codex",
+              type: "main",
+              has_transcript: true,
+              db_agent_id: mainAgent?.id || null,
+            },
+          ]
+        : [];
     if (session.provider === "cursor") {
       const liveMain =
         session.transcript_path && fs.existsSync(session.transcript_path)
@@ -1288,6 +1292,126 @@ async function readCursorTranscript(
   return { messages, total, has_more: hasMore, first_line: firstLine, last_line: lastLine };
 }
 
+function cursorMessageText(message) {
+  return (message?.content || [])
+    .filter((block) => block?.type === "text" && typeof block.text === "string")
+    .map((block) => block.text.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * Merge Cursor's immediate prompt history with its later canonical transcript.
+ * Prompt ids remain stable when the matching JSONL user row arrives, letting
+ * clients refresh in place without showing the submitted prompt twice.
+ */
+async function readCursorConversation(
+  sessionId,
+  jsonlPath,
+  { limit, afterLine, beforeLine, offset, isSubagentFile }
+) {
+  if (isSubagentFile) {
+    if (!jsonlPath) {
+      return { messages: [], total: 0, has_more: false, first_line: 0, last_line: 0 };
+    }
+    return readCursorTranscript(jsonlPath, {
+      limit,
+      afterLine,
+      beforeLine,
+      offset,
+      isSubagentFile: true,
+    });
+  }
+
+  const messages = [];
+  if (jsonlPath) {
+    let rawLine = 0;
+    const rl = readline.createInterface({
+      input: fs.createReadStream(jsonlPath, { encoding: "utf8" }),
+      crlfDelay: Infinity,
+    });
+    for await (const line of rl) {
+      rawLine++;
+      if (!line.trim()) continue;
+      let entry;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const message = parseCursorMessage(entry, rawLine, false);
+      if (!message) continue;
+      message.id = `cursor-jsonl:${rawLine}`;
+      messages.push(message);
+    }
+  }
+
+  const { meta, prompts } = readCursorChatMetadata(sessionId);
+  const claimedPromptIndexes = new Set();
+  for (const message of messages) {
+    if (message.sender !== "user") continue;
+    const text = cursorMessageText(message);
+    const promptIndex = prompts.findIndex(
+      (prompt, index) =>
+        !claimedPromptIndexes.has(index) && prompt.replace(/\s+/g, " ").trim() === text
+    );
+    if (promptIndex < 0) continue;
+    claimedPromptIndexes.add(promptIndex);
+    message.id = `cursor-prompt:${promptIndex}`;
+  }
+
+  prompts.forEach((prompt, index) => {
+    if (claimedPromptIndexes.has(index)) return;
+    messages.push({
+      id: `cursor-prompt:${index}`,
+      type: "user",
+      sender: "user",
+      timestamp:
+        index === prompts.length - 1 && Number.isFinite(Number(meta?.updatedAtMs))
+          ? new Date(Number(meta.updatedAtMs)).toISOString()
+          : null,
+      content: [{ type: "text", text: truncate(prompt, 10240) }],
+    });
+  });
+
+  messages.forEach((message, index) => {
+    message.line = index + 1;
+  });
+  const total = messages.length;
+  let page;
+  let hasMore = false;
+  let refresh = false;
+  if (afterLine !== null) {
+    // Cursor can persist prompt history before it emits transcript rows, which
+    // makes a raw line cursor unstable during hand-off. Return the latest
+    // window with stable message ids and let the client merge it in place.
+    page = messages.slice(-limit);
+    hasMore = messages.length > page.length;
+    refresh = true;
+  } else if (beforeLine !== null) {
+    const older = messages.filter((message) => message.line < beforeLine);
+    page = older.slice(-limit);
+    hasMore = older.length > page.length;
+  } else if (offset > 0) {
+    page = messages.slice(offset, offset + limit);
+    hasMore = offset + page.length < messages.length;
+  } else {
+    page = messages.slice(-limit);
+    hasMore = messages.length > page.length;
+  }
+  const firstLine = page[0]?.line || 0;
+  const lastLine = page[page.length - 1]?.line || 0;
+  page.forEach((message) => delete message.line);
+  return {
+    messages: page,
+    total,
+    has_more: hasMore,
+    first_line: firstLine,
+    last_line: lastLine,
+    ...(refresh ? { refresh: true } : {}),
+  };
+}
+
 router.get("/:id/transcript", async (req, res) => {
   const session = stmts.getSession.get(req.params.id);
   if (!session) {
@@ -1323,12 +1447,9 @@ router.get("/:id/transcript", async (req, res) => {
 
   if (session.provider === "cursor") {
     const jsonlPath = resolveSessionTranscriptPath(session, req.params.id, agentId, runId);
-    if (!jsonlPath) {
-      return res.json({ messages: [], total: 0, has_more: false, last_line: 0, first_line: 0 });
-    }
     try {
       return res.json(
-        await readCursorTranscript(jsonlPath, {
+        await readCursorConversation(req.params.id, jsonlPath, {
           limit,
           afterLine,
           beforeLine,

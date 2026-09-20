@@ -2513,6 +2513,9 @@ export type TranscriptSender = "user" | "assistant" | "orchestrator" | "system" 
  * carrying its detail in `event_kind`/`title` rather than `content`.
  */
 export interface TranscriptMessage {
+  /** Stable provider-local identity used to merge live refresh windows. Cursor
+   *  supplies this while prompt history hands off to the canonical transcript. */
+  id?: string;
   /** Raw JSONL line type. "session_event" is a synthetic marker (see
    *  `event_kind`/`title`) injected by the server, not a real transcript line. */
   type: "user" | "assistant" | "session_event";
@@ -2563,6 +2566,9 @@ export interface TranscriptResult {
   last_line: number;
   /** JSONL line number of the first message in this page. */
   first_line: number;
+  /** When true, this is a latest-window refresh keyed by message `id`, not a
+   *  strict append-only page after `last_line`. */
+  refresh?: boolean;
 }
 
 /** One entry in a session's transcript picker (main agent, a subagent, or a

@@ -74,6 +74,7 @@ function cursorSessionIdFromPath(transcriptPath) {
 }
 
 function findCursorChatDir(sessionId) {
+  if (!isSafeCursorId(sessionId)) return null;
   const root = getCursorChatsDir();
   let workspaces;
   try {
@@ -112,7 +113,7 @@ function indexCursorChatDirs() {
       continue;
     }
     for (const session of sessions) {
-      if (session.isDirectory() && !indexed.has(session.name)) {
+      if (session.isDirectory() && isSafeCursorId(session.name) && !indexed.has(session.name)) {
         indexed.set(session.name, path.join(workspaceDir, session.name));
       }
     }

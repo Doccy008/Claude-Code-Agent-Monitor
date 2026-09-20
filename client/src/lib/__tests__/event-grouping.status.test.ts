@@ -4,8 +4,8 @@
  * by the Dashboard, Activity Feed, and Session Detail event streams, and keeps
  * the EventFilters status presets its exact inverse. Both had diverged: the
  * Dashboard hand-rolled a mapping that knew only three types, and neither knew
- * any Codex-native type, so every Codex row rendered a misleading yellow
- * "Waiting" badge (issue #310).
+ * any provider-native prompt type, so Cursor/Codex rows could render a
+ * misleading yellow "Waiting" badge (issue #310).
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -29,6 +29,7 @@ describe("statusFromEventType", () => {
   });
 
   it.each([
+    ["cursor_user_message", "working"],
     ["codex_user_message", "working"],
     ["codex_task_started", "working"],
     ["codex_tool_call", "working"],
@@ -38,7 +39,7 @@ describe("statusFromEventType", () => {
     ["codex_task_complete", "completed"],
     ["codex_context_compacted", "completed"],
     ["codex_error", "error"],
-  ])("maps the Codex event %s to %s", (type, expected) => {
+  ])("maps the Cursor/Codex event %s to %s", (type, expected) => {
     expect(statusFromEventType(type)).toBe(expected);
   });
 

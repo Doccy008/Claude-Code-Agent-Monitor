@@ -213,7 +213,7 @@ exports[`screen snapshots > Activity feed 1`] = `
                 <dd
                   class="self-center"
                 >
-                  Work is starting or under way: a prompt was submitted, a Codex turn began, or a tool is about to run (PreToolUse, UserPromptSubmit, codex_user_message, codex_task_started, codex_tool_call).
+                  Work is starting or under way: a prompt was submitted, a Codex turn began, or a tool is about to run (PreToolUse, UserPromptSubmit, cursor_user_message, codex_user_message, codex_task_started, codex_tool_call).
                 </dd>
                 <dt>
                   <span

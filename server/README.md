@@ -50,7 +50,7 @@ The server is a lightweight Express application that:
 4. **Serves REST API** for sessions, agents, events, stats, analytics, pricing, workflows, settings, and docs
 5. **Manages isolated Claude, Cursor, and Codex pricing rules** for cost calculation and attribution
 
-Cursor history is native rather than an alias for Claude storage. `lib/cursor-home.js` resolves `~/.cursor`, while `lib/cursor-ingest.js` continuously discovers agent transcripts, joins chat titles/cwd/prompt history, backfills existing rows, imports subagents, and copies durable transcript snapshots into the dashboard data directory. `routes/sessions.js` parses Cursor's `role/message.content` JSONL directly for the Conversation tab. `DASHBOARD_CURSOR_HOME` overrides the root; `DASHBOARD_CURSOR_SYNC_MS` controls the periodic safety scan.
+Cursor history is native rather than an alias for Claude storage. `lib/cursor-home.js` resolves `~/.cursor`, while `lib/cursor-ingest.js` discovers chat directories immediately from `meta.json`, applies `prompt_history.json` updates before a transcript exists, records deduplicated `cursor_user_message` activity for Timeline/last-active state, later joins agent transcripts, backfills existing rows, imports subagents, and copies durable transcript snapshots into the dashboard data directory. `index.js` watches both chat and project trees and broadcasts ordinary session/agent/event frames; `routes/sessions.js` merges pending prompts with Cursor's `role/message.content` JSONL by stable message id for the Conversation tab. `DASHBOARD_CURSOR_HOME` overrides the root; `DASHBOARD_CURSOR_SYNC_MS` controls only the periodic safety scan, not filesystem watching.
 
 ```mermaid
 graph TB
@@ -1601,7 +1601,7 @@ DASHBOARD_DB_PATH=./data/dashboard.db  # SQLite database path
 # Background services
 DASHBOARD_SESSION_SYNC_MS=30000    # Continuous project-sync poll interval (ms); 0 disables the poll (watcher stays)
 DASHBOARD_CURSOR_HOME=             # Optional Cursor home; defaults to ~/.cursor for native history and chat metadata
-DASHBOARD_CURSOR_SYNC_MS=5000      # Fingerprinted Cursor history safety-net poll (ms); 0 disables periodic discovery
+DASHBOARD_CURSOR_SYNC_MS=5000      # Cursor chat/transcript safety-net poll (ms); 0 keeps watchers but disables polling
 DASHBOARD_CODEX_HOME=              # Optional Codex home; Settings saves this dashboard-only override and immediately re-arms live watching
 DASHBOARD_CODEX_SYNC_MS=4000       # Codex rollout safety-net poll (ms); 0 disables poll (watcher stays)
 DASHBOARD_CODEX_MAX_ATTEMPTS=5     # Consecutive failed ingest attempts per unchanged rollout, including the first attempt

@@ -1,9 +1,9 @@
 /**
  * @file cursor-ingest.js
  * @description Discovers, enriches, snapshots, and backfills Cursor agent
- * sessions from ~/.cursor. It repairs hook-created placeholder rows with native
- * titles, working directories, prompt summaries, turn counts, provider identity,
- * and subagent records while keeping the live hook path fail-safe.
+ * sessions from ~/.cursor. Chat metadata is ingested before Cursor creates a
+ * transcript, so new sessions and submitted prompts reach the dashboard live;
+ * later transcript data adds durable conversation and subagent detail.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -13,6 +13,7 @@ const {
   cursorSessionIdFromPath,
   getCursorProjectsDir,
   getCursorSnapshotDir,
+  isSafeCursorId,
   indexCursorChatDirs,
   readCursorChatMetadata,
 } = require("./cursor-home");
@@ -30,11 +31,12 @@ function statFingerprint(filePath) {
 }
 
 function cursorSessionFingerprint(transcriptPath, chatDir) {
-  const parts = [statFingerprint(transcriptPath)];
+  const parts = [transcriptPath ? statFingerprint(transcriptPath) : "no-transcript"];
   if (chatDir) {
     parts.push(statFingerprint(path.join(chatDir, "meta.json")));
     parts.push(statFingerprint(path.join(chatDir, "prompt_history.json")));
   }
+  if (!transcriptPath) return parts.join("|");
   const subagentsDir = path.join(path.dirname(transcriptPath), "subagents");
   let subagents = [];
   try {
@@ -74,6 +76,39 @@ function promptPreview(prompts) {
     .join("\n");
 }
 
+/** Persist append-only Cursor prompt history once so last-activity and Timeline stay live. */
+function importCursorPromptEvents(dbModule, sessionId, prompts, createdAt, updatedAt) {
+  if (prompts.length === 0) return [];
+  const { db, stmts } = dbModule;
+  const existingIndexes = new Set(
+    db
+      .prepare(
+        `SELECT json_extract(data, '$.prompt_index') AS prompt_index
+         FROM events
+         WHERE session_id = ? AND event_type = 'cursor_user_message'`
+      )
+      .all(sessionId)
+      .map((row) => Number(row.prompt_index))
+      .filter(Number.isInteger)
+  );
+  const inserted = [];
+  prompts.forEach((prompt, index) => {
+    if (existingIndexes.has(index)) return;
+    const timestamp = index === prompts.length - 1 ? updatedAt : createdAt;
+    const info = stmts.insertEventAt.run(
+      sessionId,
+      `${sessionId}-main`,
+      "cursor_user_message",
+      null,
+      trimPrompt(prompt),
+      JSON.stringify({ provider: "cursor", event: "user_message", prompt_index: index }),
+      timestamp
+    );
+    inserted.push(db.prepare("SELECT * FROM events WHERE id = ?").get(info.lastInsertRowid));
+  });
+  return inserted;
+}
+
 function isoFromMs(value, fallback) {
   const n = Number(value);
   if (Number.isFinite(n) && n > 0) return new Date(n).toISOString();
@@ -87,6 +122,22 @@ function latestIso(first, second) {
   if (!Number.isFinite(firstMs)) return second;
   if (!Number.isFinite(secondMs)) return first;
   return firstMs >= secondMs ? first : second;
+}
+
+/** Return the newest useful mtime across Cursor's immediately-written chat files. */
+function cursorChatMtimeMs(chatDir) {
+  if (!chatDir) return 0;
+  return Math.max(
+    ...[chatDir, path.join(chatDir, "meta.json"), path.join(chatDir, "prompt_history.json")].map(
+      (candidate) => {
+        try {
+          return fs.statSync(candidate).mtimeMs;
+        } catch {
+          return 0;
+        }
+      }
+    )
+  );
 }
 
 /** Parse stored metadata without letting an old malformed row stop discovery. */
@@ -130,6 +181,7 @@ function copyIfNewer(source, destination) {
 }
 
 function snapshotCursorTranscript(transcriptPath, sessionId) {
+  if (!transcriptPath) return false;
   let changed = copyIfNewer(
     transcriptPath,
     path.join(getCursorSnapshotDir(), `${sessionId}.jsonl`)
@@ -190,6 +242,7 @@ function readCursorSubagent(filePath) {
 }
 
 function importCursorSubagents(dbModule, sessionId, transcriptPath, sessionActive) {
+  if (!transcriptPath) return 0;
   const { db, stmts } = dbModule;
   const mainAgentId = `${sessionId}-main`;
   const subagentsDir = path.join(path.dirname(transcriptPath), "subagents");
@@ -315,7 +368,7 @@ function discoverCursorTranscripts(root = getCursorProjectsDir()) {
       continue;
     }
     for (const session of sessions) {
-      if (!session.isDirectory()) continue;
+      if (!session.isDirectory() || !isSafeCursorId(session.name)) continue;
       const transcriptPath = path.join(transcriptsRoot, session.name, `${session.name}.jsonl`);
       if (fs.existsSync(transcriptPath)) results.push(transcriptPath);
     }
@@ -325,22 +378,32 @@ function discoverCursorTranscripts(root = getCursorProjectsDir()) {
 
 function enrichCursorSession(dbModule, transcriptPath, options = {}) {
   const { db, stmts } = dbModule;
-  const sessionId = options.sessionId || cursorSessionIdFromPath(transcriptPath);
+  const sessionId =
+    options.sessionId || (transcriptPath && cursorSessionIdFromPath(transcriptPath));
   if (!sessionId) return { changed: false, created: false, session: null };
 
-  let stat;
-  try {
-    stat = fs.statSync(transcriptPath);
-  } catch {
-    return { changed: false, created: false, session: stmts.getSession.get(sessionId) || null };
+  let stat = null;
+  if (transcriptPath) {
+    try {
+      stat = fs.statSync(transcriptPath);
+    } catch {
+      transcriptPath = null;
+    }
   }
   const { meta, prompts } = readCursorChatMetadata(sessionId, options.chatDir);
+  const chatMtimeMs = cursorChatMtimeMs(options.chatDir);
+  if (!stat && !meta && prompts.length === 0) {
+    return { changed: false, created: false, session: stmts.getSession.get(sessionId) || null };
+  }
   const existing = stmts.getSession.get(sessionId);
-  const recent = Date.now() - stat.mtimeMs < RECENT_SESSION_MS;
-  const createdAt = isoFromMs(meta?.createdAtMs, stat.birthtime.toISOString());
+  const transcriptMtimeMs = stat?.mtimeMs || 0;
+  const activityMs = Math.max(Number(meta?.updatedAtMs) || 0, chatMtimeMs, transcriptMtimeMs);
+  const fallbackCreatedAt = stat?.birthtime?.toISOString() || new Date(activityMs).toISOString();
+  const recent = Date.now() - activityMs < RECENT_SESSION_MS;
+  const createdAt = isoFromMs(meta?.createdAtMs, fallbackCreatedAt);
   const updatedAt = latestIso(
-    isoFromMs(meta?.updatedAtMs, stat.mtime.toISOString()),
-    stat.mtime.toISOString()
+    isoFromMs(meta?.updatedAtMs, new Date(activityMs).toISOString()),
+    new Date(Math.max(chatMtimeMs, transcriptMtimeMs)).toISOString()
   );
   const firstPrompt = prompts[0] || null;
   const nativeTitle = trimPrompt(meta?.title);
@@ -364,14 +427,14 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
       `UPDATE sessions
        SET provider = 'cursor', transcript_path = ?, started_at = ?, updated_at = ?, ended_at = ?
        WHERE id = ?`
-    ).run(transcriptPath, createdAt, updatedAt, recent ? null : updatedAt, sessionId);
+    ).run(transcriptPath || null, createdAt, updatedAt, recent ? null : updatedAt, sessionId);
     stmts.insertAgent.run(
       `${sessionId}-main`,
       sessionId,
       `Cursor · ${name}`,
       "main",
       null,
-      recent ? "waiting" : "completed",
+      recent ? (prompts.length > 0 ? "working" : "waiting") : "completed",
       firstPrompt,
       null,
       JSON.stringify({ cursor: true })
@@ -387,10 +450,13 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
     changed = true;
   } else {
     const currentMeta = parseMetadata(existing.metadata);
+    const previousPromptCount = Number(currentMeta.user_messages) || 0;
+    const promptAdded = prompts.length > previousPromptCount;
+    const hasNewActivity = Date.parse(updatedAt) > Date.parse(existing.updated_at || "");
     const shouldComplete = !recent && existing.status === "active";
     const shouldReactivate =
       recent &&
-      currentMeta.cursor_ingest_recent === false &&
+      (currentMeta.cursor_ingest_recent === false || hasNewActivity || promptAdded) &&
       (existing.status === "completed" || existing.status === "abandoned");
     const desiredStatus = shouldComplete
       ? "completed"
@@ -420,7 +486,7 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
            cwd = COALESCE(?, cwd),
            model = COALESCE(?, model),
            provider = 'cursor',
-           transcript_path = ?,
+           transcript_path = COALESCE(?, transcript_path),
            metadata = ?,
            started_at = CASE WHEN started_at > ? THEN ? ELSE started_at END,
            updated_at = CASE WHEN updated_at < ? THEN ? ELSE updated_at END
@@ -431,7 +497,7 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
            (? IS NOT NULL AND COALESCE(cwd, '') != ?) OR
            (? IS NOT NULL AND COALESCE(model, '') != ?) OR
            provider != 'cursor' OR
-           COALESCE(transcript_path, '') != ? OR
+           (? IS NOT NULL AND COALESCE(transcript_path, '') != ?) OR
            COALESCE(metadata, '') != ?
          )`
       )
@@ -455,6 +521,7 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
         cwd,
         model,
         model,
+        transcriptPath,
         transcriptPath,
         JSON.stringify(nextMeta)
       );
@@ -494,9 +561,11 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
         ? main.status === "error"
           ? "error"
           : "completed"
-        : shouldReactivate && main.status !== "error"
-          ? "waiting"
-          : main.status;
+        : promptAdded && main.status !== "error"
+          ? "working"
+          : shouldReactivate && main.status !== "error"
+            ? "waiting"
+            : main.status;
       const desiredMainEndedAt = shouldComplete
         ? updatedAt
         : shouldReactivate
@@ -531,6 +600,8 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
     }
   }
 
+  const promptEvents = importCursorPromptEvents(dbModule, sessionId, prompts, createdAt, updatedAt);
+  changed = promptEvents.length > 0 || changed;
   const preview = promptPreview(prompts);
   if (preview) {
     const previewUpdate = stmts.updateSessionCardPromptPreview.run(preview, sessionId, preview);
@@ -546,31 +617,49 @@ function enrichCursorSession(dbModule, transcriptPath, options = {}) {
   changed = subagents > 0 || changed;
   snapshotCursorTranscript(transcriptPath, sessionId);
 
-  return { changed, created, session: stmts.getSession.get(sessionId), subagents };
+  return {
+    changed,
+    created,
+    session: stmts.getSession.get(sessionId),
+    subagents,
+    events: promptEvents,
+  };
 }
 
 async function syncCursorSessions(dbModule, options = {}) {
   const transcripts = discoverCursorTranscripts(options.root);
   const chatDirs = indexCursorChatDirs();
-  const counters = { filesScanned: transcripts.length, imported: 0, backfilled: 0, skipped: 0 };
-  for (let index = 0; index < transcripts.length; index++) {
-    const transcriptPath = transcripts[index];
+  const transcriptsBySession = new Map();
+  for (const transcriptPath of transcripts) {
     const sessionId = cursorSessionIdFromPath(transcriptPath);
-    const chatDir = sessionId ? chatDirs.get(sessionId) || null : null;
+    if (sessionId) transcriptsBySession.set(sessionId, transcriptPath);
+  }
+  const sessionIds = [...new Set([...chatDirs.keys(), ...transcriptsBySession.keys()])];
+  const counters = {
+    filesScanned: transcripts.length,
+    chatsScanned: chatDirs.size,
+    imported: 0,
+    backfilled: 0,
+    skipped: 0,
+  };
+  for (let index = 0; index < sessionIds.length; index++) {
+    const sessionId = sessionIds[index];
+    const transcriptPath = transcriptsBySession.get(sessionId) || null;
+    const chatDir = chatDirs.get(sessionId) || null;
     const fingerprint = cursorSessionFingerprint(transcriptPath, chatDir);
-    const existing = sessionId ? dbModule.stmts.getSession.get(sessionId) : null;
+    const existing = dbModule.stmts.getSession.get(sessionId);
     let recencyExpired = false;
     if (existing?.status === "active") {
-      try {
-        recencyExpired = Date.now() - fs.statSync(transcriptPath).mtimeMs >= RECENT_SESSION_MS;
-      } catch {
-        recencyExpired = false;
-      }
+      const activityMs = Math.max(
+        cursorChatMtimeMs(chatDir),
+        transcriptPath ? Number(statFingerprint(transcriptPath).split(":")[1]) || 0 : 0
+      );
+      recencyExpired = activityMs > 0 && Date.now() - activityMs >= RECENT_SESSION_MS;
     }
     if (
-      syncFingerprints.get(transcriptPath) === fingerprint &&
+      syncFingerprints.get(sessionId) === fingerprint &&
       existing?.provider === "cursor" &&
-      existing.transcript_path === transcriptPath &&
+      (!transcriptPath || existing.transcript_path === transcriptPath) &&
       !recencyExpired
     ) {
       counters.skipped++;
@@ -578,7 +667,7 @@ async function syncCursorSessions(dbModule, options = {}) {
     }
     const result = enrichCursorSession(dbModule, transcriptPath, { sessionId, chatDir });
     if (result.session) {
-      syncFingerprints.set(transcriptPath, cursorSessionFingerprint(transcriptPath, chatDir));
+      syncFingerprints.set(sessionId, cursorSessionFingerprint(transcriptPath, chatDir));
     }
     if (result.created) counters.imported++;
     else if (result.changed) counters.backfilled++;

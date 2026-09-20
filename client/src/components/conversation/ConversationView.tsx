@@ -5,7 +5,8 @@
  * the message stream via MessageList. Combines a WebSocket subscription, a
  * visibility-gated polling fallback, and a manual refresh button so the view
  * stays caught up even when events miss frames or the user is mid-text-only
- * turn. A top sentinel and scroll fallback
+ * turn. Cursor prompt-history refresh windows merge by stable message id while
+ * its canonical transcript catches up. A top sentinel and scroll fallback
  * make older pages load reliably for both Claude and Codex transcripts.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
@@ -113,6 +114,7 @@ export function ConversationView({ sessionId, initialTranscriptId }: Conversatio
   // manual refresh), we queue exactly one re-fetch so events that landed
   // during the in-flight request aren't silently dropped.
   const pendingFetchRef = useRef(false);
+  const latestMessageIdRef = useRef<string | null>(null);
   // Refresh-button spinner state - separate from initial `loading` so the
   // existing skeleton doesn't blink during a manual refresh.
   const [refreshing, setRefreshing] = useState(false);
@@ -164,6 +166,7 @@ export function ConversationView({ sessionId, initialTranscriptId }: Conversatio
         setHasMore(result.has_more);
         lastLineRef.current = result.last_line;
         firstLineRef.current = result.first_line;
+        latestMessageIdRef.current = result.messages[result.messages.length - 1]?.id || null;
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "Failed to load transcript");
@@ -207,6 +210,9 @@ export function ConversationView({ sessionId, initialTranscriptId }: Conversatio
       if (result.messages.length === 0) return;
 
       lastLineRef.current = result.last_line;
+      const newestId = result.messages[result.messages.length - 1]?.id || null;
+      const hasNewMessage = newestId !== null && newestId !== latestMessageIdRef.current;
+      latestMessageIdRef.current = newestId;
 
       if (wasBootstrap) {
         // Seed the view in a single render so the user sees the whole
@@ -214,13 +220,26 @@ export function ConversationView({ sessionId, initialTranscriptId }: Conversatio
         setMessages(result.messages);
         firstLineRef.current = result.first_line;
         setHasMore(result.has_more);
+      } else if (result.refresh) {
+        setMessages((prev) => {
+          const incomingIds = new Set(
+            result.messages.map((message) => message.id).filter((id): id is string => !!id)
+          );
+          return [
+            ...prev.filter((message) => !message.id || !incomingIds.has(message.id)),
+            ...result.messages,
+          ];
+        });
+        setHasMore((current) => current || result.has_more);
       } else {
         setMessages((prev) => [...prev, ...result.messages]);
       }
       setTotal(result.total);
 
       // Auto-scroll if user is at bottom; otherwise show "new messages" indicator
-      if (isAtBottomRef.current) {
+      if (!hasNewMessage) {
+        return;
+      } else if (isAtBottomRef.current) {
         scrollToBottom();
       } else {
         setShowNewMsg(true);
@@ -239,18 +258,18 @@ export function ConversationView({ sessionId, initialTranscriptId }: Conversatio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, selectedTranscript]);
 
-  // WebSocket subscription: refetch on every new_event for this session.
-  // Hook coverage isn't complete (a user-typed message fires no hook), so we
-  // also poll below to catch what WS misses.
+  // WebSocket subscription: refetch on transcript events and session updates.
+  // Cursor's native chat watcher emits session_updated as soon as a prompt is
+  // persisted, before a tool hook or assistant transcript row exists.
   useEffect(() => {
     const unsubscribe = eventBus.subscribe((msg: WSMessage) => {
       if (isRemoteDataRefreshMessage(msg)) {
         fetchNewMessages();
         return;
       }
-      if (msg.type !== "new_event") return;
-      const data = msg.data as { session_id?: string };
-      if (data.session_id !== sessionId) return;
+      if (msg.type !== "new_event" && msg.type !== "session_updated") return;
+      const data = msg.data as { id?: string; session_id?: string };
+      if (data.session_id !== sessionId && data.id !== sessionId) return;
       fetchNewMessages();
     });
     return unsubscribe;

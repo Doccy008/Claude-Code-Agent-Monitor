@@ -171,7 +171,7 @@
       "valueDateRangeDesc": "Límites inferior/superior de fecha y hora ISO en el created_at del evento.",
       "statusesTitle": "Insignias de estado",
       "statusesIntro": "El estado se deriva de event_type. Es lo que ves en cada fila.",
-      "statusWorkingDesc": "El trabajo comienza o está en curso: se envió un prompt, empezó un turno de Codex o una herramienta está a punto de ejecutarse (PreToolUse, UserPromptSubmit, codex_user_message, codex_task_started, codex_tool_call).",
+      "statusWorkingDesc": "El trabajo comienza o está en curso: se envió un prompt, empezó un turno de Codex o una herramienta está a punto de ejecutarse (PreToolUse, UserPromptSubmit, cursor_user_message, codex_user_message, codex_task_started, codex_tool_call).",
       "statusWaitingDesc": "Una herramienta devolvió un resultado y el turno continúa, o el evento es de ciclo de vida/metadatos sin un significado de progreso fiable (PostToolUse, los resultados de herramienta codex_*_end, SessionStart, Notification, TurnDuration, codex_turn_aborted). Los eventos de metadatos conservan la insignia Esperando, pero quedan deliberadamente fuera del preajuste de filtro Esperando, que solo coincide con resultados de herramientas.",
       "statusCompletedDesc": "Límite de turno o ciclo de vida (Stop, SessionEnd, SubagentStop, Compaction, codex_task_complete, codex_context_compacted).",
       "statusErrorDesc": "Se registró un error (error, APIError, codex_error).",

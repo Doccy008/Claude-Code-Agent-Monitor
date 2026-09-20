@@ -1,6 +1,6 @@
 /**
  * @file Unit tests for owner-attributed Claude and Codex task-progress
- * extraction from JSONL transcripts and Claude lifecycle event fallbacks.
+ * extraction from JSONL transcripts plus Claude/Cursor lifecycle fallbacks.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -1600,6 +1600,30 @@ describe("task progress extraction", () => {
     assert.equal(result.snapshot.completed, 1);
     assert.equal(result.snapshot.confidence, "partial");
     assert.equal(result.snapshot.includesSubagents, false);
+  });
+
+  it("treats a persisted Cursor prompt as a new top-level work boundary", () => {
+    const result = extractSessionTaskProgress({
+      session: { id: "cursor-events", provider: "cursor" },
+      agents: [{ id: "cursor-events-main", type: "main", subagent_type: null }],
+      events: [
+        {
+          event_type: "TaskCreated",
+          agent_id: "cursor-events-main",
+          created_at: "2026-08-07T10:00:00.000Z",
+          data: JSON.stringify({ task_id: "task-1", task_subject: "Old work" }),
+        },
+        {
+          event_type: "cursor_user_message",
+          agent_id: "cursor-events-main",
+          created_at: "2026-08-07T11:00:00.000Z",
+          data: JSON.stringify({ provider: "cursor", prompt_index: 1 }),
+        },
+      ],
+    });
+
+    assert.equal(result.snapshot, null);
+    assert.equal(result.summary, null);
   });
 
   it("keeps subagent task ownership separate in the session aggregate", () => {

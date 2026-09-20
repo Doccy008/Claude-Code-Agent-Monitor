@@ -372,7 +372,11 @@ responses include human turns, legacy `function_call` records, and the primary
 can render the actual command flow rather than only `wait` calls. Both providers
 also expose persisted PNG/JPEG/GIF/WebP user attachments as `image` content blocks;
 missing or expired files are simply omitted, and Codex's duplicated response/event
-user records are returned as one human turn.
+user records are returned as one human turn. Cursor main sessions can return
+`prompt_history.json` turns before JSONL exists. Their messages carry stable `id`
+values; an incremental result with `refresh: true` is a latest window that clients
+merge by `id`, allowing the canonical transcript to replace the pending prompt
+without duplication.
 
 #### Read Persisted Transcript Image
 
