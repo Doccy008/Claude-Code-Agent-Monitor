@@ -3838,6 +3838,9 @@ npm run mcp:start:repl         # interactive CLI with tab completion</code></pre
             If the user selects an existing thread in Codex's Resume picker, that exact Codex PID
             opens the resumed rollout or writer lock immediately. CCAM uses that signal to switch
             from the temporary card to the durable resumed session before the first new message.
+            That handoff only adopts a thread the durable record already shows as finished, and it
+            runs once per process, so a turn Codex is still driving keeps the lifecycle its rollout
+            reports.
           </p>
           <p>
             Codex <code>response_item</code> tool calls are indexed exactly once through a separate
@@ -7220,7 +7223,7 @@ npm run install-hooks</code></pre>
     <!-- Body-content translations — must load before script.js so the
          i18n engine sees window.__WIKI_CONTENT_I18N. Both are deferred, so they
          run in document order. -->
-    <script src="i18n-content.js?v=97" defer></script>
+    <script src="i18n-content.js?v=98" defer></script>
     <script src="script.js?v=59" defer></script>
     <script>
       (function () {

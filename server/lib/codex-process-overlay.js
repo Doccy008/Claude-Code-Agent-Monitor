@@ -64,6 +64,8 @@ const VALUE_FLAGS = new Set([
 
 let sessionsById = new Map();
 let matchedSessionIds = new Set();
+// Durable threads already handed a resume hint by an earlier probe tick.
+let resumeHintedSessionIds = new Set();
 let monitorStarted = false;
 
 function commandTokens(args) {
@@ -439,17 +441,26 @@ async function refreshCodexProcessOverlay(options = {}) {
     }
   }
   const durableIds = new Set((durableSessions || []).map((session) => session.id));
+  const matchedNow = new Set(
+    probe.processes
+      .map((processInfo) => processInfo?.sessionId)
+      .filter((sessionId) => typeof sessionId === "string" && durableIds.has(sessionId))
+  );
   const resumed = [];
-  for (const processInfo of probe.processes) {
-    if (!processInfo?.sessionId || !durableIds.has(processInfo.sessionId)) continue;
+  for (const sessionId of matchedNow) {
+    // Edge-triggered: the hint describes the moment a process adopts a thread,
+    // not every probe tick for as long as that TUI stays open. Re-running it
+    // each second rewrote the session's awaiting marker continuously.
+    if (resumeHintedSessionIds.has(sessionId)) continue;
     try {
       const { resumeCodexSessionAtPrompt } = require("./codex-ingest");
-      const result = resumeCodexSessionAtPrompt(processInfo.sessionId);
+      const result = resumeCodexSessionAtPrompt(sessionId);
       if (result?.changed) resumed.push(result);
     } catch {
       // Lock hints are optional; rollout and hook ingestion remain authoritative.
     }
   }
+  resumeHintedSessionIds = matchedNow;
   const changes = reconcileCodexProcessOverlay(probe.processes, durableSessions, options.now);
   return { ...changes, resumed };
 }
@@ -540,6 +551,7 @@ function startCodexProcessOverlay({ broadcast, intervalMs = 1_000 } = {}) {
 function resetCodexProcessOverlayForTests() {
   sessionsById = new Map();
   matchedSessionIds = new Set();
+  resumeHintedSessionIds = new Set();
 }
 
 module.exports = {
