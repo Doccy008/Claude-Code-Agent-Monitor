@@ -8,7 +8,7 @@
  * MODULE_GUIDE — extended in-file reference (comments only; safe to read, never executed)
  * =============================================================================
  * **Path:** `mcp/src/tools/domains/webhook-tools.ts`
- * **Purpose:** React hook: isolates side effects and subscription wiring so presentational components stay declarative.
+ * **Purpose:** Registers MCP webhook tools for provider discovery, redacted target management, test delivery, and delivery-log inspection.
  *
  * ## Design constraints
  * - Local-first: no telemetry leaves the machine unless the user configures webhooks.

@@ -1004,6 +1004,7 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
     window = ingestCodexTranscriptWindow(transcriptPath, options, window.carry);
     mergeIngestWindow(result, window);
   }
+  if (!result.failed) mergeIngestWindow(result, ingestCodexToolEvents(transcriptPath, options));
   delete result.more;
   delete result.carry;
   return result;
@@ -1042,7 +1043,8 @@ function ingestCodexTranscriptWindow(transcriptPath, options, carry) {
     return { changed: false, events: [], failed: true };
   }
   const state = stmts.getCodexIngestState.get(transcriptPath);
-  const offset = !state || stat.size < state.byte_offset ? 0 : state.byte_offset;
+  const storedOffset = !state || stat.size < state.byte_offset ? 0 : state.byte_offset;
+  const offset = Number.isInteger(carry?.readOffset) ? carry.readOffset : storedOffset;
   const repairSession = state?.session_id ? stmts.getSession.get(state.session_id) : null;
   let repairedCardContext = false;
   try {
@@ -1092,7 +1094,26 @@ function ingestCodexTranscriptWindow(transcriptPath, options, carry) {
         return [];
       }
     });
-  if (!records.length) return cardRepairResult();
+  if (!records.length) {
+    if (state?.session_id) {
+      stmts.upsertCodexIngestState.run(
+        transcriptPath,
+        state.session_id,
+        nextOffset,
+        remainder,
+        asNumber(state.input_tokens),
+        asNumber(state.cached_input_tokens),
+        asNumber(state.cache_write_input_tokens),
+        asNumber(state.output_tokens),
+        asNumber(state.reasoning_output_tokens)
+      );
+    }
+    return {
+      ...cardRepairResult(),
+      more: window.capped,
+      carry: state?.session_id ? carry : { ...carry, readOffset: nextOffset },
+    };
+  }
 
   let meta = records.find((record) => record.type === "session_meta")?.payload;
   const resolvedSessionId = state?.session_id || meta?.id || sessionIdFromPath(transcriptPath);
@@ -1192,7 +1213,7 @@ function ingestCodexTranscriptWindow(transcriptPath, options, carry) {
   // against the session as loaded (the loop never refreshes it), and carried
   // across windows so a windowed read names the session exactly as a single
   // pass would.
-  const nameOpen = carry ? carry.nameOpen : !session.name || session.name === "Codex session";
+  const nameOpen = carry?.nameOpen ?? (!session.name || session.name === "Codex session");
   for (const record of records) {
     if (record.type === "session_meta") {
       meta = record.payload;
@@ -1233,7 +1254,7 @@ function ingestCodexTranscriptWindow(transcriptPath, options, carry) {
     if (record.type === "event_msg" && LIFECYCLE_EVENT_TYPES.has(record.payload?.type)) {
       latestLifecycleRecord = record;
     }
-    // Tool invocations are owned by `ingestCodexToolEvents` below. The primary
+    // Tool invocations are owned by `ingestCodexToolEvents`. The primary
     // cursor records lifecycle, message, and token events only, which keeps a
     // watcher/hook append from creating a duplicate tool row.
     const duplicatePrompt = promptKey && seenPromptKeys.has(promptKey);
@@ -1269,11 +1290,6 @@ function ingestCodexTranscriptWindow(transcriptPath, options, carry) {
   // marker. Replaying an old task_started record must never reactivate and
   // broadcast a dead session merely because it shares a cwd with a live one.
   if (confirmedLive !== false) applyCodexTranscriptLifecycle(session.id, latestLifecycleRecord);
-  // Tool invocations are stored through an independent cursor so initial
-  // rollout imports and all subsequent real-time appends preserve their exact
-  // order without double-counting lifecycle/token records.
-  const toolResult = ingestCodexToolEvents(transcriptPath, options);
-  events.push(...(toolResult.events || []));
   stmts.touchSession.run(session.id);
   // A native `/rename` lives outside the rollout, so it wins over the first
   // user prompt even when both files changed around the same time.

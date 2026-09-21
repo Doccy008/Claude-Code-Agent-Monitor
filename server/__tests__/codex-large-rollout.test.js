@@ -158,6 +158,11 @@ describe("Codex rollouts read in bounded windows", () => {
     assert.equal("more" in many, false, "internal window flags never leak to callers");
     assert.equal("carry" in many, false);
     assert.equal(many.events.length, one.events.length, "same events returned to the caller");
+    assert.deepEqual(
+      many.events.map((event) => [event.event_type, event.summary]),
+      one.events.map((event) => [event.event_type, event.summary]),
+      "windowing preserves the caller-visible transcript/tool event order"
+    );
 
     const a = snapshot(whole.id, whole.file);
     const b = snapshot(windowed.id, windowed.file);
@@ -239,6 +244,44 @@ describe("Codex rollouts read in bounded windows", () => {
       '{"timestamp":"2026-08-02T12:00:00.000Z","type":"event_'
     );
     assert.equal(s.cursor.byte_offset, fs.statSync(r.file).size - partialBytes);
+  });
+
+  it("continues past a capped window containing only malformed records", () => {
+    const r = newRollout();
+    const meta = JSON.stringify({
+      timestamp: at(0),
+      type: "session_meta",
+      payload: {
+        id: r.id,
+        timestamp: at(0),
+        cwd: "/workspace/large",
+        cli_version: "1.0.0",
+        model_provider: "openai",
+      },
+    });
+    const windowBytes = Buffer.byteLength(`${meta}\n`);
+    const malformed = "not-json\n".repeat(Math.ceil(windowBytes / Buffer.byteLength("not-json\n")));
+    const valid = JSON.stringify({
+      timestamp: at(1),
+      type: "event_msg",
+      payload: { type: "user_message", message: "Valid record after malformed window" },
+    });
+    fs.mkdirSync(path.dirname(r.file), { recursive: true });
+    fs.writeFileSync(r.file, `${meta}\n${malformed}${valid}\n`);
+    setReadWindowBytesForTests(windowBytes);
+
+    const result = ingestCodexTranscript(r.file);
+    const state = snapshot(r.id, r.file);
+
+    assert.equal(result.failed, undefined);
+    assert.equal(state.cursor.byte_offset, fs.statSync(r.file).size);
+    assert.ok(
+      state.events.some(
+        (event) =>
+          event.event_type === "codex_user_message" &&
+          event.summary === "Valid record after malformed window"
+      )
+    );
   });
 
   it("indexes tool calls in windows and commits each window's cursor with its events", () => {

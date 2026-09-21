@@ -65,7 +65,17 @@ def topic_blurb(path: Path) -> str:
             "Electron main/preload process code for the packaged desktop app — embeds the "
             "Express server, manages tray/window lifecycle, and writes discovery metadata."
         )
-    if "workflow" in rel.lower():
+    if rel.endswith("mcp/src/tools/domains/webhook-tools.ts"):
+        hints.append(
+            "Registers MCP webhook tools for provider discovery, redacted target "
+            "management, test delivery, and delivery-log inspection."
+        )
+    if rel.endswith("mcp/src/tools/domains/workflow-tools.ts"):
+        hints.append(
+            "Registers MCP workflow tools for aggregate analytics, session drill-down, "
+            "fleet-run listings, and individual run inspection."
+        )
+    if "workflow" in rel.lower() and path.parts[0:3] == ("client", "src", "components"):
         hints.append(
             "Workflow analytics visualization built on D3; consumes aggregated session/run "
             "metrics from the workflows API."
@@ -80,7 +90,7 @@ def topic_blurb(path: Path) -> str:
             "Tabby is the optional on-screen cat assistant — quips, intents, and lightweight "
             "event reactions layered above the dashboard chrome."
         )
-    if "hook" in rel.lower() or name.startswith("use"):
+    if path.parts[0:3] == ("client", "src", "hooks") or name.startswith("use"):
         hints.append(
             "React hook: isolates side effects and subscription wiring so presentational "
             "components stay declarative."

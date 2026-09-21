@@ -8,7 +8,7 @@
  * MODULE_GUIDE — extended in-file reference (comments only; safe to read, never executed)
  * =============================================================================
  * **Path:** `mcp/src/tools/domains/workflow-tools.ts`
- * **Purpose:** Workflow analytics visualization built on D3; consumes aggregated session/run metrics from the workflows API.
+ * **Purpose:** Registers MCP workflow tools for aggregate analytics, session drill-down, fleet-run listings, and individual run inspection.
  *
  * ## Design constraints
  * - Local-first: no telemetry leaves the machine unless the user configures webhooks.
