@@ -16,6 +16,7 @@ from pathlib import Path
 
 AUTHOR = "@author Son Nguyen <hoangson091104@gmail.com>"
 MARKER = "MODULE_GUIDE"
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 EXPORT_RE = re.compile(
     r"^export\s+(?:async\s+)?(?:function|const|class|type|interface|enum)\s+(\w+)",
@@ -28,6 +29,7 @@ IMPORT_RE = re.compile(
 
 
 def topic_blurb(path: Path) -> str:
+    path = path.resolve().relative_to(REPO_ROOT)
     rel = path.as_posix()
     name = path.stem
     hints: list[str] = []
@@ -121,7 +123,7 @@ def list_imports(source: str) -> list[str]:
 def build_guide(path: Path, source: str) -> str:
     exports = list_exports(source)
     imports = list_imports(source)
-    rel = path.as_posix()
+    rel = path.resolve().relative_to(REPO_ROOT).as_posix()
     blurb = topic_blurb(path)
 
     lines = [
@@ -229,7 +231,7 @@ def main(argv: list[str]) -> int:
         print("Usage: expand-ts-module-docs.py <glob-root> [...]", file=sys.stderr)
         return 1
 
-    root = Path(__file__).resolve().parents[1]
+    root = REPO_ROOT
     changed = 0
     for arg in argv[1:]:
         for path in sorted(root.glob(arg)):

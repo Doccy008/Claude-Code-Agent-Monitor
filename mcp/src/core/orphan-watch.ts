@@ -3,6 +3,75 @@
  * @description Orphan detection for the MCP stdio transport. The SDK's StdioServerTransport only listens for stdin "data"/"error" events, so a stdio-mode server never notices when its host process (Claude Code, an IDE, Codex) dies without sending SIGTERM/SIGINT first — stdin closes silently and the child lingers forever with nothing left to talk to. This module watches two independent signals, stdin reaching end/close and the process being re-parented away from the parent it was launched under, and runs the caller's shutdown function the moment either fires. Re-parenting is detected by comparing against the ppid captured at startup rather than testing for ppid 1, so servers that are legitimately launched with init as their parent (containers running tini as PID 1, exec-style launchers) are not mistaken for orphans, and Linux hosts that reparent to a systemd user instance or another subreaper instead of PID 1 are still caught. A hard exit deadline guarantees termination even when the shutdown path itself hangs, which is the failure mode that leaves orphans spinning at high CPU.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
+/* =============================================================================
+ * MODULE_GUIDE — extended in-file reference (comments only; safe to read, never executed)
+ * =============================================================================
+ * **Path:** `mcp/src/core/orphan-watch.ts`
+ * **Purpose:** Part of the local MCP server (`npm run mcp:start`) that exposes dashboard operations as MCP tools for Claude Code and other hosts.
+ *
+ * ## Design constraints
+ * - Local-first: no telemetry leaves the machine unless the user configures webhooks.
+ * - Fail-safe hooks path on the server must never block Claude Code; UI mirrors that
+ *   philosophy by degrading gracefully (empty states, stale badges, reconnect loops).
+ * - Destructive flows stay behind explicit confirmation modals and server-side gates.
+ * - Internationalization: user-visible strings belong in i18n JSON, not literals here.
+ *
+ * ## Remote data & SSH
+ * Remote Data Sources let operators aggregate multiple machines. SSH entries describe
+ * how to reach a peer dashboard; the global data scope (`dataScope.ts`) narrows every
+ * scoped GET via `?sources=`. Health checks and import history surface in Settings.
+ *
+ * ## Observability
+ * Prometheus scrapes `GET /api/metrics` (see `monitoring/`). Grafana ships four
+ * provisioned boards (overview, sessions, tools, alerts). Native npm scripts and
+ * Docker Compose profiles are documented in `monitoring/README.md`.
+ *
+ * ## Public surface
+ * - `OrphanReason` — exported API; see TSDoc on the symbol for behavior.
+ * - `OrphanWatch` — exported API; see TSDoc on the symbol for behavior.
+ * - `OrphanWatchOptions` — exported API; see TSDoc on the symbol for behavior.
+ * - `isOrphaned` — exported API; see TSDoc on the symbol for behavior.
+ * - `watchForOrphanedHost` — exported API; see TSDoc on the symbol for behavior.
+ *
+ * ## Testing pointers
+ * - Prefer colocated `__tests__` with Vitest + Testing Library for UI.
+ * - Server contract changes require `npm run test:server` and OpenAPI sync.
+ * - MCP edits: `npm run mcp:typecheck` and `npm run mcp:build`.
+ *
+ * ## Related docs
+ * - `ARCHITECTURE.md` — hooks → API → SQLite → WebSocket → UI pipeline.
+ * - `docs/API.md` — REST reference.
+ * - `.claude/skills/file-headers/` — mandatory `@author` header policy.
+ * ============================================================================= */
+/* -----------------------------------------------------------------------------
+ * EXPORT CATALOG — quick index of symbols defined below (documentation only).
+ * -----------------------------------------------------------------------------
+ * **OrphanReason**
+ *   Part of this module's public contract. Downstream imports should treat
+ *   the signature and return type as stable unless release notes say otherwise.
+ *   When behavior changes, update the `@file` overview and relevant tests.
+ *
+ * **OrphanWatch**
+ *   Part of this module's public contract. Downstream imports should treat
+ *   the signature and return type as stable unless release notes say otherwise.
+ *   When behavior changes, update the `@file` overview and relevant tests.
+ *
+ * **OrphanWatchOptions**
+ *   Part of this module's public contract. Downstream imports should treat
+ *   the signature and return type as stable unless release notes say otherwise.
+ *   When behavior changes, update the `@file` overview and relevant tests.
+ *
+ * **isOrphaned**
+ *   Part of this module's public contract. Downstream imports should treat
+ *   the signature and return type as stable unless release notes say otherwise.
+ *   When behavior changes, update the `@file` overview and relevant tests.
+ *
+ * **watchForOrphanedHost**
+ *   Part of this module's public contract. Downstream imports should treat
+ *   the signature and return type as stable unless release notes say otherwise.
+ *   When behavior changes, update the `@file` overview and relevant tests.
+ *
+ * ----------------------------------------------------------------------------- */
 
 import type { EventEmitter } from "node:events";
 
