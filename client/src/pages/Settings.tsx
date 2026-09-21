@@ -133,7 +133,7 @@ import { ImportHistory } from "../components/ImportHistory";
 import { RemoteSources } from "../components/RemoteSources";
 import { Skeleton } from "../components/Skeleton";
 import { AlertsNotifications } from "../components/AlertsNotifications";
-import type { GptModelPricing, ModelPricing, WSMessage } from "../lib/types";
+import type { CursorModelPricing, GptModelPricing, ModelPricing, WSMessage } from "../lib/types";
 import { useDataScope, type ProviderScope } from "../lib/dataScope";
 
 // In-page navigation for the (dense) Settings screen. Each entry maps to a
@@ -146,6 +146,7 @@ const SETTINGS_SECTIONS: {
 }[] = [
   { id: "data-display", labelKey: "display.title", Icon: Layers },
   { id: "claude-pricing", labelKey: "pricing.navClaude", Icon: DollarSign },
+  { id: "cursor-pricing", labelKey: "pricing.navCursor", Icon: DollarSign },
   { id: "gpt-pricing", labelKey: "pricing.navGpt", Icon: DollarSign },
   { id: "hooks", labelKey: "hooks.title", Icon: Plug },
   { id: "session-homes", labelKey: "homes.title", Icon: FolderOpen },
@@ -396,13 +397,18 @@ function Toggle({
  * gets clipped by the sidebar or screen edges, mirroring the pattern used by
  * the Workflows stat tooltips.
  */
-function PricingInfoTooltip({ provider = "claude" }: { provider?: "claude" | "gpt" }) {
+function PricingInfoTooltip({ provider = "claude" }: { provider?: "claude" | "cursor" | "gpt" }) {
   const { t } = useTranslation("settings");
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
-  const key = provider === "gpt" ? "pricing.gpt.tooltip" : "pricing.tooltip";
+  const key =
+    provider === "gpt"
+      ? "pricing.gpt.tooltip"
+      : provider === "cursor"
+        ? "pricing.cursor.tooltip"
+        : "pricing.tooltip";
 
   const positionPopover = useCallback(() => {
     const btn = buttonRef.current;
@@ -803,6 +809,251 @@ function GptPricingTable({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+const CURSOR_RATE_FIELDS = [
+  "input_per_mtok",
+  "cache_write_per_mtok",
+  "cache_read_per_mtok",
+  "output_per_mtok",
+] as const;
+type CursorRateField = (typeof CURSOR_RATE_FIELDS)[number];
+type CursorDraft = Record<"model_pattern" | "display_name" | CursorRateField, string>;
+
+function emptyCursorDraft(): CursorDraft {
+  return Object.fromEntries([
+    ["model_pattern", ""],
+    ["display_name", ""],
+    ...CURSOR_RATE_FIELDS.map((field) => [field, "0"]),
+  ]) as CursorDraft;
+}
+
+function CursorPricingTable({
+  resetRevision,
+  resetConfirming,
+  resetLoading,
+  onReset,
+}: {
+  resetRevision: number;
+  resetConfirming: boolean;
+  resetLoading: boolean;
+  onReset: () => void;
+}) {
+  const { t } = useTranslation("settings");
+  const [rules, setRules] = useState<CursorModelPricing[]>([]);
+  const [draft, setDraft] = useState<CursorDraft>(emptyCursorDraft);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(
+    () => api.pricing.listCursor().then((result) => setRules(result.pricing)),
+    []
+  );
+
+  useEffect(() => {
+    reload().catch((err) =>
+      setError(err instanceof Error ? err.message : t("messages.failedLoad"))
+    );
+  }, [reload, resetRevision, t]);
+
+  const cancel = () => {
+    setEditing(null);
+    setAdding(false);
+    setError(null);
+  };
+  const edit = (rule: CursorModelPricing) => {
+    const next = emptyCursorDraft();
+    next.model_pattern = rule.model_pattern;
+    next.display_name = rule.display_name;
+    for (const field of CURSOR_RATE_FIELDS) next[field] = String(rule[field] ?? 0);
+    setDraft(next);
+    setEditing(rule.model_pattern);
+    setAdding(false);
+    setError(null);
+  };
+  const save = async () => {
+    if (!draft.model_pattern.trim() || !draft.display_name.trim()) {
+      setError(t("pricing.validationRequired"));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.pricing.upsertCursor({
+        model_pattern: draft.model_pattern.trim(),
+        display_name: draft.display_name.trim(),
+        ...Object.fromEntries(
+          CURSOR_RATE_FIELDS.map((field) => [field, Math.max(0, Number(draft[field]) || 0)])
+        ),
+      } as Omit<CursorModelPricing, "updated_at">);
+      await reload();
+      cancel();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("messages.failedSave"));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async (pattern: string) => {
+    if (!window.confirm(t("pricing.cursor.deleteConfirm"))) return;
+    try {
+      await api.pricing.deleteCursor(pattern);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("messages.failedDelete"));
+    }
+  };
+  const input = (field: keyof CursorDraft) => {
+    const isRate = field.endsWith("_mtok");
+    return (
+      <div className={isRate ? "relative min-w-[5.5rem]" : undefined}>
+        {isRate && (
+          <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-xs text-gray-500">
+            $
+          </span>
+        )}
+        <input
+          value={draft[field]}
+          onChange={(event) => setDraft((current) => ({ ...current, [field]: event.target.value }))}
+          className={`w-full rounded border border-border bg-surface-1 px-2 py-1 text-xs text-gray-200 ${isRate ? "pl-5 text-right font-mono" : ""}`}
+          type={isRate ? "number" : "text"}
+          min={isRate ? 0 : undefined}
+          step={isRate ? "any" : undefined}
+          autoFocus={adding && field === "model_pattern"}
+        />
+      </div>
+    );
+  };
+  const editCells = () => (
+    <>
+      <td className="px-2 py-2">{input("model_pattern")}</td>
+      <td className="px-2 py-2">{input("display_name")}</td>
+      {CURSOR_RATE_FIELDS.map((field) => (
+        <td key={field} className="px-1 py-2">
+          {input(field)}
+        </td>
+      ))}
+      <td className="px-2 py-2 whitespace-nowrap">
+        <button type="button" className="btn-primary mr-1 text-xs" onClick={save} disabled={busy}>
+          <Check className="h-3 w-3" />
+        </button>
+        <button type="button" className="btn-ghost text-xs" onClick={cancel} disabled={busy}>
+          <X className="h-3 w-3" />
+        </button>
+      </td>
+    </>
+  );
+  const editingRow = adding || !!editing;
+
+  return (
+    <div>
+      <div className="mb-4">
+        <h3 className="flex items-center gap-2 text-sm font-medium text-gray-300">
+          <DollarSign className="h-4 w-4 text-gray-500" />
+          {t("pricing.cursor.title")}
+          <PricingInfoTooltip provider="cursor" />
+        </h3>
+        <p className="mt-0.5 text-xs text-gray-500">{t("pricing.cursor.description")}</p>
+        <a
+          href="https://cursor.com/docs/models-and-pricing"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1 inline-block text-[11px] text-accent hover:underline"
+        >
+          {t("pricing.cursor.source")}
+        </a>
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={editingRow || resetLoading}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors disabled:opacity-50 ${
+              resetConfirming
+                ? "border border-amber-500/30 bg-amber-500/20 text-amber-400"
+                : "text-gray-400 hover:bg-surface-4 hover:text-gray-300"
+            }`}
+          >
+            <RotateCcw className="h-3 w-3" />
+            {resetConfirming ? t("pricing.resetConfirm") : t("pricing.resetDefaults")}
+          </button>
+          <button
+            type="button"
+            className="btn-primary text-xs disabled:opacity-50"
+            disabled={editingRow}
+            onClick={() => {
+              setDraft(emptyCursorDraft());
+              setAdding(true);
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t("pricing.addModel")}
+          </button>
+        </div>
+      </div>
+      {error && <p className="mb-3 rounded bg-red-500/10 p-2 text-xs text-red-300">{error}</p>}
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[780px] text-left text-xs">
+          <thead className="bg-surface-3 text-[10px] uppercase tracking-wide text-gray-500">
+            <tr>
+              <th className="px-3 py-2">{t("pricing.pattern")}</th>
+              <th className="px-3 py-2">{t("pricing.cursor.name")}</th>
+              {(["input", "write", "cached", "output"] as const).map((label) => (
+                <th key={label} className="border-l border-border px-2 py-2 text-right">
+                  {t(`pricing.cursor.${label}`)}
+                </th>
+              ))}
+              <th className="px-3 py-2">{t("common:actions")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60">
+            {rules.map((rule) =>
+              editing === rule.model_pattern ? (
+                <tr key={rule.model_pattern} className="bg-surface-2">
+                  {editCells()}
+                </tr>
+              ) : (
+                <tr key={rule.model_pattern} className="text-gray-400 hover:bg-surface-2/60">
+                  <td className="px-3 py-2 font-mono text-gray-300">{rule.model_pattern}</td>
+                  <td className="px-3 py-2 text-gray-200">{rule.display_name}</td>
+                  {CURSOR_RATE_FIELDS.map((field) => (
+                    <td
+                      key={field}
+                      className="border-l border-border/50 px-2 py-2 text-right font-mono"
+                    >
+                      {rule[field] === 0 ? "—" : formatUsdRate(rule[field])}
+                    </td>
+                  ))}
+                  <td className="px-2 py-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      className="p-1 text-gray-400 hover:text-gray-100"
+                      onClick={() => edit(rule)}
+                      disabled={editingRow}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="p-1 text-gray-400 hover:text-red-400"
+                      onClick={() => remove(rule.model_pattern)}
+                      disabled={editingRow}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              )
+            )}
+            {adding && <tr className="bg-surface-2">{editCells()}</tr>}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-[11px] leading-relaxed text-gray-600">
+        {t("pricing.cursor.planNote")}
+      </p>
     </div>
   );
 }
@@ -1319,12 +1570,17 @@ export function Settings() {
 
   const handleResetPricing = (
     actionKey = "reset-pricing",
-    provider: "claude" | "codex" = "claude"
+    provider: "claude" | "cursor" | "codex" = "claude"
   ) =>
     runAction(actionKey, async () => {
       const res = await api.settings.resetPricing(provider);
       setPricingResetRevision((revision) => revision + 1);
-      const count = provider === "codex" ? res.gpt_pricing.length : res.pricing.length;
+      const count =
+        provider === "codex"
+          ? res.gpt_pricing.length
+          : provider === "cursor"
+            ? res.cursor_pricing.length
+            : res.pricing.length;
       return t("pricing.resetResult", { count });
     });
 
@@ -1970,6 +2226,21 @@ export function Settings() {
         )}
       </section>
 
+      {/* ─── CURSOR PRICING ─── */}
+      <section id="cursor-pricing" className="scroll-mt-24">
+        <CursorPricingTable
+          resetRevision={pricingResetRevision}
+          resetConfirming={confirmAction === "reset-pricing-cursor"}
+          resetLoading={actionLoading !== null}
+          onReset={() =>
+            confirmAction === "reset-pricing-cursor"
+              ? handleResetPricing("reset-pricing-cursor", "cursor")
+              : setConfirmAction("reset-pricing-cursor")
+          }
+        />
+        {actionBanner(["reset-pricing-cursor"])}
+      </section>
+
       {/* ─── OPENAI GPT PRICING ─── */}
       <section id="gpt-pricing" className="scroll-mt-24">
         <GptPricingTable
@@ -2541,6 +2812,7 @@ export function Settings() {
                     events: <Activity className="w-4 h-4 text-violet-400" />,
                     token_usage: <Coins className="w-4 h-4 text-amber-400" />,
                     model_pricing: <BarChart3 className="w-4 h-4 text-cyan-400" />,
+                    cursor_model_pricing: <BarChart3 className="w-4 h-4 text-emerald-400" />,
                   };
                   const tableLabels: Record<string, string> = {
                     sessions: t("tables.sessions"),
@@ -2548,6 +2820,7 @@ export function Settings() {
                     events: t("tables.events"),
                     token_usage: t("tables.sessionsWithCost"),
                     model_pricing: t("tables.pricingRules"),
+                    cursor_model_pricing: t("tables.cursorPricingRules"),
                   };
                   const tableColors: Record<string, string> = {
                     sessions: "border-blue-500/20",
@@ -2555,6 +2828,7 @@ export function Settings() {
                     events: "border-violet-500/20",
                     token_usage: "border-amber-500/20",
                     model_pricing: "border-cyan-500/20",
+                    cursor_model_pricing: "border-emerald-500/20",
                   };
                   return Object.entries(sysInfo.db.counts).map(([table, count]) => (
                     <div

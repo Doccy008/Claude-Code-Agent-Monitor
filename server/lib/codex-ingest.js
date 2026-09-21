@@ -739,6 +739,18 @@ function setCodexWaiting(sessionId, reason = "stop") {
   return changed;
 }
 
+/**
+ * A live process holding a thread's rollout or writer lock proves the thread is
+ * OPEN, never that it is idle. Only a thread the durable record already shows
+ * as finished may be adopted back as Waiting; anything the rollout is still
+ * driving owns its own lifecycle.
+ */
+function isFinishedCodexSession(session, agent) {
+  if (session.status !== "active" || session.ended_at) return true;
+  if (!agent) return true;
+  return agent.status === "completed" || agent.status === "error" || Boolean(agent.ended_at);
+}
+
 function resumeCodexSessionAtPrompt(sessionId) {
   const session = stmts.getSession.get(sessionId);
   if (
@@ -748,11 +760,20 @@ function resumeCodexSessionAtPrompt(sessionId) {
   ) {
     return null;
   }
+  const agentId = `codex:${sessionId}`;
+  const agent = stmts.getAgent.get(agentId);
+  // Without this guard the probe demoted every working Codex turn to Waiting
+  // and reset `awaiting_input_since` on each tick, so a busy session rendered
+  // as idle and an already-waiting one lost the real reason it is waiting
+  // ("stop" / "interrupted" overwritten by "session_start").
+  if (!isFinishedCodexSession(session, agent)) {
+    return { changed: false, session, agent: agent || null };
+  }
   const changed = setCodexWaiting(sessionId, "session_start");
   return {
     changed,
     session: stmts.getSession.get(sessionId),
-    agent: stmts.getAgent.get(`codex:${sessionId}`),
+    agent: stmts.getAgent.get(agentId),
   };
 }
 

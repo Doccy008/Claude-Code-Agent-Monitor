@@ -32,6 +32,7 @@
   "pricing": {
     "title": "Anthropic Claude 模型定价",
     "navClaude": "Claude 定价",
+    "navCursor": "Cursor 定价",
     "navGpt": "Codex 定价",
     "description": "每百万 Token 的 Anthropic API 费率（美元）。在模式中使用 % 作为通配符。部分模型有限时优惠费率（以紫色显示）；在截止日期当天及之前的用量按该费率计费，之后按标准费率计费。",
     "introNote": "优惠 ${{input}}/${{output}}，截止 {{until}}",
@@ -63,6 +64,29 @@
     "cacheWrite1h": "缓存写入 (1h)",
     "fastInput": "快速输入",
     "fastOutput": "快速输出",
+    "cursor": {
+      "title": "Cursor 模型定价",
+      "description": "Cursor 官方公布的原生及第三方路由模型价格。单位为美元/百万 Token，优先匹配最具体的规则。",
+      "source": "查看 Cursor 模型与定价 ↗",
+      "planNote": "估算基于 Cursor 的按 Token 价目表。套餐内用量池、额度、Auto 路由和团队 Token 计费可能使实际订阅费用不同。",
+      "name": "名称",
+      "input": "输入",
+      "write": "缓存写入",
+      "cached": "缓存读取",
+      "output": "输出",
+      "deleteConfirm": "删除此 Cursor 定价规则？",
+      "tooltip": {
+        "title": "Cursor 定价方式",
+        "howItWorks": "工作方式",
+        "howItWorksBody": "Cursor 会话用量仅按此 Cursor 价目表计算。输入、缓存写入、缓存读取和输出 Token 分别按美元/百万 Token 计价。",
+        "patternsTitle": "模式语法",
+        "patternsBody": "模式使用 SQL 风格的 % 通配符。更具体的模式优先，因此快速版或特定版本模型可安全覆盖更宽泛的系列规则。",
+        "manualUpdates": "价格需手动更新",
+        "manualUpdatesBody": "Cursor 在官网发布模型价格变更，但没有实时数据源。当模型名称或价格变化时，请新增或编辑规则。",
+        "apiPricing": "套餐账单可能不同",
+        "apiPricingBody": "价目表用于估算 Token 价值。仪表板不会还原月度包含用量、额外用量、Auto 路由或团队与企业计费规则。"
+      }
+    },
     "gpt": {
       "title": "OpenAI GPT 模型定价",
       "description": "用于 Codex 的公开 OpenAI API 费率。标准请求在输入令牌不超过 272K 时使用短上下文费率，超过 272K 时使用长上下文费率；快速模式分别提供短上下文和长上下文费率。每 100 万 Token（美元）。",
@@ -117,9 +141,9 @@
     "claude": "Claude Code",
     "codex": "Codex",
     "both": "两者",
-    "claudeDescription": "仅显示 Claude Code 数据。",
+    "claudeDescription": "显示 Claude Code 和 Cursor 数据。",
     "codexDescription": "仅显示 Codex 数据。",
-    "bothDescription": "合并 Claude Code 和 Codex 数据。",
+    "bothDescription": "合并 Claude Code、Cursor 和 Codex 数据。",
     "beta": "测试版"
   },
   "hooks": {
@@ -317,7 +341,8 @@
     "agents": "个Agent",
     "events": "个事件",
     "sessionsWithCost": "个有费用的会话",
-    "pricingRules": "条定价规则"
+    "pricingRules": "条定价规则",
+    "cursorPricingRules": "条 Cursor 定价规则"
   },
   "messages": {
     "failedLoad": "加载失败",
@@ -568,5 +593,5 @@
     "removeKeep": "移除（保留数据）",
     "remoteSourceBadgeTitle": "从远程机器收集"
   },
-  "cursorPathsNote": "仅供参考：Cursor 会话也会计入——Cursor 与 Claude Code 使用相同的 ~/.claude 路径（本机及已同步的远程机器）。"
+  "cursorPathsNote": "Cursor 已包含在 Claude Code 仪表板范围内。本地历史会自动从 ~/.cursor 发现并创建快照；仅同步 Claude 的 SSH 导入不会同步远程 Cursor 文件夹。"
 }

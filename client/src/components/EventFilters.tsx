@@ -138,8 +138,8 @@ export function isEmptyFilters(f: EventFiltersValue): boolean {
 // `statusFromEventType` in lib/event-grouping, which paints the badge on every
 // event row: every type listed here must badge as the status it is filed under,
 // or a preset silently stops matching what the user can see (a test asserts
-// exactly that). Codex-native types are included, without which the presets
-// never matched a Codex row at all (issue #310).
+// exactly that). Cursor/Codex-native types are included, without which the
+// presets never match those provider rows (issue #310).
 //
 // The lifecycle/metadata types that reach "waiting" only through the mapping's
 // default — SessionStart, Notification, TurnDuration, codex_turn_aborted — are
@@ -150,6 +150,7 @@ export const STATUS_TO_EVENT_TYPES: Record<string, string[]> = {
   working: [
     "PreToolUse",
     "UserPromptSubmit",
+    "cursor_user_message",
     "codex_user_message",
     "codex_task_started",
     "codex_tool_call",

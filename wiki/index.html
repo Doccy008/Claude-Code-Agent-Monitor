@@ -9,69 +9,160 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Claude Code Agent Monitor - Project Wiki</title>
+    <title>Claude Code Agent Monitor Wiki — Setup, API, Hooks &amp; MCP</title>
     <meta
       name="description"
-      content="Comprehensive technical wiki for Claude Code Agent Monitor — real-time local monitoring with MCP server integration plus Claude Code and Codex extension scaffolding."
+      content="Complete technical wiki for Claude Code Agent Monitor: install, hooks, REST API, SQLite schema, MCP tools, plugins, deployment, Cursor and Codex support."
     />
     <meta
       name="keywords"
-      content="Claude Code, Codex, MCP, Model Context Protocol, Claude Code Agent Monitor, AI monitoring, real-time dashboard, WebSocket, SQLite, React, TypeScript, developer tools, session tracking, agent skills"
+      content="Claude Code wiki, Claude Code Agent Monitor docs, Cursor monitoring, Codex monitoring, MCP, Model Context Protocol, Claude Code hooks, REST API reference, SQLite schema, WebSocket, React, TypeScript, session tracking, agent skills, self-hosted observability"
     />
     <meta name="author" content="Son Nguyen" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="theme-color" content="#6366f1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="application-name" content="Claude Code Agent Monitor Wiki" />
+    <meta name="apple-mobile-web-app-title" content="CCAM Wiki" />
+    <link rel="canonical" href="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/wiki/" />
+    <link rel="sitemap" type="application/xml" href="../sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="../llms.txt" />
 
     <!-- Open Graph -->
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content="article" />
     <meta property="og:site_name" content="Claude Code Agent Monitor" />
-    <meta property="og:title" content="Claude Code Agent Monitor - Project Wiki" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/wiki/" />
+    <meta property="og:title" content="Claude Code Agent Monitor Wiki — Setup, API, Hooks &amp; MCP" />
     <meta
       property="og:description"
-      content="Comprehensive technical wiki for Claude Code Agent Monitor — real-time local monitoring with MCP server integration plus Claude Code and Codex extension scaffolding."
+      content="Complete technical wiki for Claude Code Agent Monitor: install, hooks, REST API, SQLite schema, MCP tools, plugins, deployment, Cursor and Codex support."
     />
-    <meta property="og:image" content="../og-image.svg" />
+    <meta property="og:image" content="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png" />
+    <meta property="og:image:secure_url" content="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image:type" content="image/png" />
     <meta
       property="og:image:alt"
-      content="Claude Code Agent Monitor — real-time Claude Code monitoring platform"
+      content="Claude Code Agent Monitor — real-time local dashboard for Claude Code, Cursor, and Codex"
     />
 
     <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Claude Code Agent Monitor - Project Wiki" />
+    <meta name="twitter:site" content="@hoangsonww" />
+    <meta name="twitter:creator" content="@hoangsonww" />
+    <meta name="twitter:title" content="Claude Code Agent Monitor Wiki — Setup, API, Hooks &amp; MCP" />
     <meta
       name="twitter:description"
-      content="Real-time local monitoring for Claude Code agent activity with MCP integration, extension scaffolding, analytics, and WebSocket push."
+      content="Install, hooks, REST API, SQLite schema, MCP tools, plugins, and deployment for the local-first Claude Code, Cursor, and Codex dashboard."
     />
-    <meta name="twitter:image" content="../og-image.svg" />
+    <meta name="twitter:image" content="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png" />
     <meta
       name="twitter:image:alt"
-      content="Claude Code Agent Monitor — real-time Claude Code monitoring platform"
+      content="Claude Code Agent Monitor — real-time local dashboard for Claude Code, Cursor, and Codex"
     />
-    <meta name="twitter:creator" content="@hoangsonww" />
 
     <!-- JSON-LD structured data -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Claude Code Agent Monitor",
-        "description": "Real-time monitoring platform for Claude Code agent activity. Tracks sessions, agents, and tool events via native hooks, stores them in SQLite, and streams updates to a React UI over WebSocket.",
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Windows, macOS, Linux",
-        "license": "https://opensource.org/licenses/MIT",
-        "author": {
-          "@type": "Person",
-          "name": "Son Nguyen",
-          "url": "https://sonnguyenhoang.com"
-        },
-        "codeRepository": "https://github.com/hoangsonww/Claude-Code-Agent-Monitor",
-        "programmingLanguage": ["TypeScript", "JavaScript", "Python"],
-        "runtimePlatform": "Node.js",
-        "keywords": "Claude Code, Codex, MCP, Model Context Protocol, agent monitoring, real-time dashboard, WebSocket, SQLite, React"
+        "@graph": [
+          {
+            "@type": "Person",
+            "@id": "https://sonnguyenhoang.com/#person",
+            "name": "Son Nguyen",
+            "url": "https://sonnguyenhoang.com",
+            "sameAs": [
+              "https://github.com/hoangsonww",
+              "https://www.linkedin.com/in/hoangsonw",
+              "https://twitter.com/hoangsonww"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/#website",
+            "url": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/",
+            "name": "Claude Code Agent Monitor",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://sonnguyenhoang.com/#person" }
+          },
+          {
+            "@type": ["TechArticle", "WebPage"],
+            "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/wiki/#wiki",
+            "url": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/wiki/",
+            "name": "Claude Code Agent Monitor Wiki",
+            "headline": "Claude Code Agent Monitor Wiki — Setup, API, Hooks and MCP",
+            "description": "Complete technical wiki for Claude Code Agent Monitor: install, hooks, REST API, SQLite schema, MCP tools, plugins, deployment, Cursor and Codex support.",
+            "inLanguage": ["en", "zh", "vi", "ko", "es"],
+            "image": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png",
+            "proficiencyLevel": "Beginner to Expert",
+            "dependencies": "Node.js 18+, npm, Claude Code CLI",
+            "keywords": "Claude Code, Cursor, Codex, MCP, hooks, REST API, SQLite, WebSocket, deployment, plugins",
+            "articleSection": [
+              "Installation",
+              "Architecture",
+              "Hooks",
+              "REST API",
+              "Database schema",
+              "MCP server",
+              "Plugins and skills",
+              "Deployment",
+              "Internationalization"
+            ],
+            "author": { "@id": "https://sonnguyenhoang.com/#person" },
+            "publisher": { "@id": "https://sonnguyenhoang.com/#person" },
+            "isPartOf": { "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/#website" },
+            "about": { "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/#software" }
+          },
+          {
+            "@type": ["SoftwareApplication", "WebApplication"],
+            "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/#software",
+            "name": "Claude Code Agent Monitor",
+            "alternateName": ["CCAM", "Claude Code Monitor"],
+            "url": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/",
+            "description": "Real-time local monitoring platform for Claude Code, Cursor, and Codex. Native hooks stream sessions, agents, and tool events into SQLite and a React UI updates live over WebSocket.",
+            "applicationCategory": "DeveloperApplication",
+            "applicationSubCategory": "Monitoring and observability",
+            "operatingSystem": "macOS, Windows, Linux",
+            "softwareVersion": "2.2.2",
+            "license": "https://opensource.org/licenses/MIT",
+            "isAccessibleForFree": true,
+            "image": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png",
+            "downloadUrl": "https://github.com/hoangsonww/Claude-Code-Agent-Monitor/releases/latest",
+            "softwareHelp": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/wiki/",
+            "codeRepository": "https://github.com/hoangsonww/Claude-Code-Agent-Monitor",
+            "programmingLanguage": ["TypeScript", "JavaScript", "Python"],
+            "runtimePlatform": "Node.js",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/InStock"
+            },
+            "author": { "@id": "https://sonnguyenhoang.com/#person" },
+            "keywords": "Claude Code, Cursor, Codex, MCP, Model Context Protocol, agent monitoring, real-time dashboard, WebSocket, SQLite, React"
+          },
+          {
+            "@type": "BreadcrumbList",
+            "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/wiki/#breadcrumb",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Claude Code Agent Monitor",
+                "item": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Wiki",
+                "item": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/wiki/"
+              }
+            ]
+          }
+        ]
       }
     </script>
 
@@ -703,11 +794,11 @@
             <span class="dot"></span>
             Real-time · Local-first · Zero-config
           </div>
-          <h1 style="padding-bottom: 2px">Claude Code Agent Monitor</h1>
+          <h1 style="padding-bottom: 2px">Claude Code, Cursor &amp; Codex Agent Monitor</h1>
           <p class="hero-desc">
-            A professional monitoring platform for Claude Code agent activity. Captures sessions,
-            agents, and tool events via native hooks, persists them in SQLite, and streams updates
-            to a React UI over WebSocket — with no external services required.
+            A professional local monitoring platform for Claude Code, Cursor, and Codex. It captures
+            sessions, conversations, agents, tools, and provider-specific cost, persists them in
+            SQLite, and streams updates to React over WebSocket.
           </p>
           <div class="marquee-wrapper">
             <div class="marquee-track">
@@ -757,6 +848,7 @@
                 <span class="tech-badge badge-github">GitHub Actions</span>
                 <span class="tech-badge badge-vscode">VS Code Extension</span>
                 <span class="tech-badge badge-claude">Claude Code</span>
+                <span class="tech-badge badge-claude">Cursor</span>
                 <span class="tech-badge badge-claude">Claude Plugins</span>
                 <span class="tech-badge badge-claude">Claude CLI</span>
                 <span class="tech-badge badge-node">Electron 35</span>
@@ -833,6 +925,7 @@
                 <span class="tech-badge badge-github">GitHub Actions</span>
                 <span class="tech-badge badge-vscode">VS Code Extension</span>
                 <span class="tech-badge badge-claude">Claude Code</span>
+                <span class="tech-badge badge-claude">Cursor</span>
                 <span class="tech-badge badge-claude">Claude Plugins</span>
                 <span class="tech-badge badge-claude">Claude CLI</span>
                 <span class="tech-badge badge-node">Electron 35</span>
@@ -969,6 +1062,18 @@
                     hover badges and column headers for the exact reason and lifecycle rules. Cards
                     show model, cumulative cost, and current tool, while WebSocket updates keep lane
                     counts synchronized with the live event store.
+                  </p>
+                </div>
+                <div class="feature-card">
+                  <div class="feature-icon ic-emerald">▣</div>
+                  <h3>Cursor Monitoring</h3>
+                  <p>
+                    Cursor is included with the Claude Code scope out of the box. The dashboard
+                    watches <code>~/.cursor/chats</code> so a session appears when
+                    <code>agent</code> starts and a submitted prompt reaches cards and Conversation
+                    before the transcript or reply. The later JSONL merges without duplicating the
+                    user turn, is snapshotted for cleanup resilience, and adds native titles,
+                    subtitles, subagents, and provider-specific Cursor pricing.
                   </p>
                 </div>
                 <div class="feature-card">
@@ -1210,7 +1315,7 @@
                   <p>
                     Local MCP sidecar with three transport modes and 97 typed tools across 16
                     domain modules. It covers the complete supported app surface, including
-                    scoped data, transcripts and images, Claude/GPT pricing, workflows, alerts,
+                    scoped data, transcripts and images, Claude/Cursor/GPT pricing, workflows, alerts,
                     webhooks, imports and restore, Claude/Codex config, Run Agent, remote sources,
                     push, and maintenance. Every transport shares one validated catalog with
                     bearer-token support and tiered mutation/destructive gates.
@@ -2032,6 +2137,16 @@ npm run mcp:start:repl         # interactive CLI with tab completion</code></pre
                   <td>
                     Poll interval for the background sync of <code>~/.claude/projects</code>; <code>0</code> disables the poll but keeps the filesystem watcher
                   </td>
+                </tr>
+                <tr>
+                  <td><code>DASHBOARD_CURSOR_HOME</code></td>
+                  <td><code>~/.cursor</code></td>
+                  <td>Optional Cursor home containing <code>projects/agent-transcripts</code> and <code>chats</code> metadata. Local history is backfilled and snapshotted without separate hook installation.</td>
+                </tr>
+                <tr>
+                  <td><code>DASHBOARD_CURSOR_SYNC_MS</code></td>
+                  <td><code>5000</code></td>
+                  <td>Cursor chat/transcript safety-net interval (ms). Filesystem watching still imports CLI startup and prompt changes immediately; <code>0</code> disables only periodic discovery.</td>
                 </tr>
                 <tr>
                   <td><code>DASHBOARD_CODEX_HOME</code></td>
@@ -3724,6 +3839,9 @@ npm run mcp:start:repl         # interactive CLI with tab completion</code></pre
             If the user selects an existing thread in Codex's Resume picker, that exact Codex PID
             opens the resumed rollout or writer lock immediately. CCAM uses that signal to switch
             from the temporary card to the durable resumed session before the first new message.
+            That handoff only adopts a thread the durable record already shows as finished, and it
+            runs once per process, so a turn Codex is still driving keeps the lifecycle its rollout
+            reports.
           </p>
           <p>
             Codex <code>response_item</code> tool calls are indexed exactly once through a separate
@@ -7106,8 +7224,8 @@ npm run install-hooks</code></pre>
     <!-- Body-content translations — must load before script.js so the
          i18n engine sees window.__WIKI_CONTENT_I18N. Both are deferred, so they
          run in document order. -->
-    <script src="i18n-content.js?v=95" defer></script>
-    <script src="script.js?v=57" defer></script>
+    <script src="i18n-content.js?v=99" defer></script>
+    <script src="script.js?v=59" defer></script>
     <script>
       (function () {
         var carousel = document.getElementById("feature-carousel");

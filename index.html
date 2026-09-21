@@ -8,60 +8,188 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Claude Code Agent Monitor - Real-Time Dashboard for Claude Code</title>
+    <title>Claude Code Agent Monitor — Dashboard for Cursor &amp; Codex</title>
     <meta
       name="description"
-      content="Real-time local dashboard for Claude Code: sessions, kanban, analytics, cost tracking, run / resume Claude from your browser, and a 12-tab inspector for every plugin, skill, hook, and setting."
+      content="Free local-first dashboard for Claude Code, Cursor, and Codex. Watch sessions, agents, tools, tokens, and cost in real time — no cloud, no telemetry, no signup."
     />
     <meta
       name="keywords"
-      content="Claude Code, dashboard, agent monitor, real-time, MCP, plugin marketplace, hooks, sessions, analytics, workflow visualization, cost tracking, Run Claude, claude config explorer"
+      content="Claude Code dashboard, Claude Code monitor, Cursor monitoring, Codex monitoring, AI agent observability, agent monitor, MCP server, Claude Code hooks, token usage tracker, LLM cost tracking, conversation history, workflow visualization, local-first developer tools"
     />
     <meta name="author" content="Son Nguyen" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="theme-color" content="#6366f1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="application-name" content="Claude Code Agent Monitor" />
+    <meta name="apple-mobile-web-app-title" content="CC Monitor" />
+    <link rel="canonical" href="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Claude Code Agent Monitor" />
-    <meta property="og:title" content="Claude Code Agent Monitor - Real-Time Dashboard for Claude Code" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/" />
+    <meta property="og:title" content="Claude Code Agent Monitor — Dashboard for Cursor &amp; Codex" />
     <meta
       property="og:description"
-      content="Real-time local dashboard for Claude Code with sessions, analytics, workflows, plugin marketplace, MCP server, in-browser Run page, and a 12-tab Claude Config Explorer."
+      content="Free local-first dashboard for Claude Code, Cursor, and Codex. Watch sessions, agents, tools, tokens, and cost in real time — no cloud, no telemetry, no signup."
     />
-    <meta property="og:image" content="og-image.svg" />
+    <meta property="og:image" content="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png" />
+    <meta property="og:image:secure_url" content="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:type" content="image/svg+xml" />
-    <meta property="og:image:alt" content="Claude Code Agent Monitor - Real-time monitoring + run Claude in-browser" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Claude Code Agent Monitor — real-time local dashboard for Claude Code, Cursor, and Codex" />
 
     <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Claude Code Agent Monitor" />
+    <meta name="twitter:site" content="@hoangsonww" />
+    <meta name="twitter:creator" content="@hoangsonww" />
+    <meta name="twitter:title" content="Claude Code Agent Monitor — Dashboard for Cursor &amp; Codex" />
     <meta
       name="twitter:description"
-      content="Real-time local dashboard for Claude Code with 13 pages, plugin marketplace, MCP server, VS Code extension, in-browser Run page and 12-tab Config Explorer."
+      content="Free local-first dashboard for Claude Code, Cursor, and Codex. Sessions, agents, tokens, cost, workflows, and MCP tooling — all on your machine."
     />
-    <meta name="twitter:image" content="og-image.svg" />
-    <meta name="twitter:creator" content="@hoangsonww" />
+    <meta name="twitter:image" content="https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png" />
+    <meta name="twitter:image:alt" content="Claude Code Agent Monitor — real-time local dashboard for Claude Code, Cursor, and Codex" />
 
     <!-- JSON-LD structured data -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "Claude Code Agent Monitor",
-        "description": "Real-time local dashboard for Claude Code with sessions, analytics, workflows, plugin marketplace, MCP server, in-browser Run page for spawning Claude subprocesses, and a 12-tab Claude Config Explorer.",
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Windows, macOS, Linux",
-        "softwareVersion": "1.0.0",
-        "license": "https://opensource.org/licenses/MIT",
-        "author": {
-          "@type": "Person",
-          "name": "Son Nguyen",
-          "url": "https://sonnguyenhoang.com"
-        },
-        "codeRepository": "https://github.com/hoangsonww/Claude-Code-Agent-Monitor"
+        "@graph": [
+          {
+            "@type": "Person",
+            "@id": "https://sonnguyenhoang.com/#person",
+            "name": "Son Nguyen",
+            "url": "https://sonnguyenhoang.com",
+            "sameAs": [
+              "https://github.com/hoangsonww",
+              "https://www.linkedin.com/in/hoangsonw",
+              "https://twitter.com/hoangsonww"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/#website",
+            "url": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/",
+            "name": "Claude Code Agent Monitor",
+            "description": "Local-first real-time dashboard for Claude Code, Cursor, and Codex sessions, agents, analytics, and costs.",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://sonnguyenhoang.com/#person" }
+          },
+          {
+            "@type": ["SoftwareApplication", "WebApplication"],
+            "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/#software",
+            "name": "Claude Code Agent Monitor",
+            "alternateName": ["CCAM", "Claude Code Monitor", "Agent Monitor"],
+            "url": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/",
+            "description": "Free local-first dashboard for Claude Code, Cursor, and Codex. Native hooks stream every session, agent, and tool event into SQLite, and a React UI updates live over WebSocket with analytics, workflow visualizations, alerts, cost estimates, and a typed local MCP server.",
+            "applicationCategory": "DeveloperApplication",
+            "applicationSubCategory": "Monitoring and observability",
+            "operatingSystem": "macOS, Windows, Linux",
+            "softwareVersion": "2.2.2",
+            "license": "https://opensource.org/licenses/MIT",
+            "isAccessibleForFree": true,
+            "inLanguage": ["en", "zh", "vi", "ko", "es"],
+            "image": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png",
+            "screenshot": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/images/dashboard.png",
+            "downloadUrl": "https://github.com/hoangsonww/Claude-Code-Agent-Monitor/releases/latest",
+            "installUrl": "https://github.com/hoangsonww/Claude-Code-Agent-Monitor#installation",
+            "softwareHelp": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/wiki/",
+            "codeRepository": "https://github.com/hoangsonww/Claude-Code-Agent-Monitor",
+            "programmingLanguage": ["TypeScript", "JavaScript", "Python"],
+            "runtimePlatform": "Node.js",
+            "keywords": "Claude Code, Cursor, Codex, agent monitoring, real-time dashboard, MCP, hooks, SQLite, WebSocket, token usage, cost tracking",
+            "featureList": [
+              "Real-time session and agent monitoring over WebSocket",
+              "Native Claude Code, Cursor, and Codex history capture",
+              "Conversation replay with syntax highlighting",
+              "Analytics, workflow intelligence, and D3 visualizations",
+              "Rules-based alerts with 14 webhook providers",
+              "Model pricing and compaction-aware cost estimates",
+              "Local MCP server with 97 typed tools",
+              "ccam terminal CLI and REPL",
+              "Native macOS and Windows desktop app",
+              "VS Code extension and plugin marketplace"
+            ],
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/InStock"
+            },
+            "author": { "@id": "https://sonnguyenhoang.com/#person" },
+            "publisher": { "@id": "https://sonnguyenhoang.com/#person" },
+            "isPartOf": { "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/#website" }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Does Claude Code Agent Monitor send any data to the cloud?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. It is a 100% local-first Node.js and React app that reads your existing ~/.claude/ directory and writes to a local SQLite file. There is zero telemetry, zero analytics, and no third-party calls. The MCP server is bound to localhost, and Web Push only reaches browsers that explicitly opted in."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How does it integrate with Claude Code?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Through Claude Code's native hook system. npm run setup installs hook entries into ~/.claude/settings.json that POST every SessionStart, PreToolUse, PostToolUse, Stop, SubagentStop, and Notification event to the local server. Hooks always exit zero, so they never block your CLI and capture resumes automatically if the dashboard is down."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does it support Cursor and Codex as well?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Codex sessions are captured through its hook settings and native rollout files, and Cursor sessions are discovered from ~/.cursor, backfilled with titles, projects, prompts, turns, and subagents, and priced with a dedicated editable rate card for Grok, Composer, and routed third-party models."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Will running Claude from the dashboard cost extra tokens?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No extra tokens. The Run page spawns real claude processes that consume your normal Claude Code quota or API tokens, exactly as they would in your terminal. The dashboard adds no overhead and shows what each run consumed, by model, with compaction-aware accounting."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I resume sessions I did not start in the dashboard?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. The Run page's resume picker lists every session in your full history, spawns claude --resume <id> with the original working directory, and continues the conversation in your browser."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is there a native desktop app?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. An Electron desktop build ships as a macOS .app inside a .dmg and as a Windows NSIS installer plus a portable .exe. It embeds the same Express server in-process and adds a tray icon, native menus, auto-start at login, and a single-instance lock."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is it free and open source?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Claude Code Agent Monitor is MIT licensed and free to use, self-host, and modify. The full source lives on GitHub at github.com/hoangsonww/Claude-Code-Agent-Monitor."
+                }
+              }
+            ]
+          }
+        ]
       }
     </script>
 
@@ -2218,7 +2346,7 @@
       <div class="nav-inner">
         <a href="#" class="brand">
           <span class="brand-mark">CC</span>
-          <span>Claude Code & Codex Agent Monitor</span>
+          <span>Claude Code, Cursor & Codex Agent Monitor</span>
         </a>
         <nav class="nav-links" aria-label="Primary">
           <a href="#values" data-section="values" class="nav-link">Why</a>
@@ -2329,12 +2457,12 @@
           <div class="badge">100% local · zero telemetry · real-time everything</div>
         </div>
         <h1 class="reveal">
-          Real-time control plane for&nbsp;<span class="accent">Claude&nbsp;Code</span>.
+          Real-time control plane for&nbsp;<span class="accent">Claude&nbsp;Code, Cursor &amp; Codex</span>.
         </h1>
         <p class="reveal">
-          A local-first dashboard that tracks every Claude Code session, agent, and tool call as it
-          happens - and now spawns new ones for you. Sessions, kanban, analytics, workflows, MCP,
-          plugin marketplace, and a 12-tab Config Explorer for everything Claude Code knows about.
+          A local-first dashboard that tracks Claude Code, Cursor, and Codex sessions, agents,
+          conversations, tool calls, and model cost as they happen. Cursor monitoring is included
+          with the Claude option and its history is snapshotted before the editor cleans it up.
         </p>
         <div class="hero-ctas reveal">
           <a href="#install" class="btn btn-primary">
@@ -2565,7 +2693,7 @@
             <div class="stat-label">Client tests</div>
           </div>
           <div class="stat">
-            <div class="stat-num" data-count="25">25</div>
+            <div class="stat-num" data-count="97">97</div>
             <div class="stat-label">MCP tools</div>
           </div>
           <div class="stat">
@@ -2647,25 +2775,24 @@
             <div class="feature-icon indigo">⚡</div>
             <h3>Real-time dashboard</h3>
             <p>
-              Six key metrics, recent activity, and a composite Health view update immediately
-              through WebSocket push.
+              Six key metrics, recent activity, and a composite Health view refresh the moment a
+              hook lands, pushed straight to the browser over WebSocket.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon indigo">⌘</div>
             <h3>Command palette</h3>
             <p>
-              Press <kbd>Cmd/Ctrl+K</kbd> to reach anything: every page, every settings section, every
-              config tab, every view — plus live session search by name, path, or id. It is the only
-              shortcut you need to learn.
+              Press <kbd>Cmd/Ctrl+K</kbd> to reach every page, settings section, and config tab,
+              plus live session search by name, path, or id.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon emerald">▶</div>
             <h3>Run Agent</h3>
             <p>
-              Start a new interactive Claude Code or Codex session from the dashboard, without
-              leaving the browser.
+              Start a fresh interactive Claude Code or Codex session straight from the dashboard,
+              without ever leaving the browser.
             </p>
           </div>
           <div class="feature-card">
@@ -2681,7 +2808,7 @@
             <h3>Claude Config Explorer</h3>
             <p>
               Twelve focused tabs reveal skills, subagents, slash commands, plugins, MCP servers,
-              hooks, settings, memory, keybindings, and statusline details.
+              hooks, settings, memory, and keybindings.
             </p>
           </div>
           <div class="feature-card">
@@ -2697,23 +2824,23 @@
             <h3>Codex Config Explorer</h3>
             <p>
               Inspect account models, profiles, MCP servers, projects, skills, hooks, rules,
-              plugins, and instructions from one workspace.
+              and plugins from one workspace.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon indigo">✎</div>
             <h3>Safe config editing</h3>
             <p>
-              Backed-up View source, Copy path, Edit, and Delete actions protect supported
-              user-managed artifacts. <code>config.toml</code> remains edit-only.
+              Every View source, Edit, and Delete action backs up first, and
+              <code>config.toml</code> stays deliberately edit-only.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon cyan">📊</div>
             <h3>Workflow intelligence</h3>
             <p>
-              Eleven provider-scoped datasets expose orchestration depth, delegation patterns,
-              concurrency, compactions, errors, and session complexity.
+              Eleven provider-scoped datasets expose orchestration depth, delegation,
+              concurrency, errors, and session complexity.
             </p>
           </div>
           <div class="feature-card">
@@ -2729,76 +2856,95 @@
             <h3>Rules-based alerts</h3>
             <p>
               Detect error bursts, stuck agents, idle sessions, and token thresholds directly
-              from the live event stream.
+              from the live event stream as it arrives.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon amber">✓</div>
             <h3>Alert triage</h3>
             <p>
-              Per-rule, session, and agent cooldowns avoid duplicate noise. Acknowledge alerts
-              from the feed and return to the session that triggered them.
+              Per-rule, session, and agent cooldowns avoid duplicate noise. Acknowledge from the
+              feed and jump to the session that triggered it.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon violet">🔗</div>
             <h3>Universal webhooks</h3>
             <p>
-              Route fired alerts to 14 first-class providers or any generic endpoint, with
-              provider-specific payloads.
+              Route fired alerts to 14 first-class providers or any generic endpoint, each with
+              its own provider-specific payload shape.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon violet">⌁</div>
             <h3>Webhook diagnostics</h3>
             <p>
-              Use optional HMAC-SHA256 signing, send a one-click test probe, and inspect each
-              recorded delivery.
+              Use optional HMAC-SHA256 signing, send a one-click test probe, and inspect every
+              recorded delivery attempt in place.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon pink">💰</div>
             <h3>Cost estimates</h3>
             <p>
-              Configure Claude and GPT pricing, including Standard and Fast context tiers,
-              introductory rates, and per-subagent estimates in the same cost view.
+              Configure Claude and GPT pricing with Standard and Fast context tiers, introductory
+              rates, and per-subagent estimates.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon pink">⊚</div>
             <h3>Reliable token accounting</h3>
             <p>
-              Compaction-aware accounting preserves totals across context compression. Bounded
-              JSONL extraction keeps multi-day sessions from growing the cache without limit.
+              Compaction-aware totals survive context compression, and bounded JSONL reads
+              keep multi-day sessions cheap.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon violet">🔌</div>
             <h3>Local MCP server</h3>
             <p>
-              Ninety-seven typed tools across 16 domains run over stdio, HTTP plus SSE, or an
-              interactive REPL with strict local safety gates.
+              Ninety-seven typed tools across 16 domains run over stdio, HTTP with SSE, or an
+              interactive REPL.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon violet">⌨</div>
             <h3>Terminal companion</h3>
             <p>
-              The dependency-free <code>ccam</code> CLI and <code>ccam repl</code> provide history,
-              live status, tab completion, and watch refreshes from your shell.
+              The dependency-free <code>ccam</code> CLI and its REPL bring history, live status,
+              and watch refreshes to your shell.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon rose">🪝</div>
             <h3>Hooks-driven capture</h3>
             <p>
-              Auto-installs into Claude Code and Codex hook settings. Claude Code creates a session
-              at <code>SessionStart</code>; Codex shows an in-memory card as soon as its interactive
-              TUI process starts, then hands off to its hook, live-thread row, rollout, or selected
-              Resume thread without persisting the temporary card or waiting for a new message.
-              SessionStart, PreToolUse,
-              PostToolUse, Stop, SubagentStop, Notification - every event lands in SQLite within
-              milliseconds.
+              Auto-installs into Claude Code and Codex hook settings, landing every session,
+              tool, and stop event in SQLite instantly.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon rose">⚑</div>
+            <h3>Instant Codex startup</h3>
+            <p>
+              Codex shows an in-memory card the moment its TUI starts, then hands off to its
+              hook, rollout, or resumed thread.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon emerald">▣</div>
+            <h3>Cursor, out of the box</h3>
+            <p>
+              Discovers <code>~/.cursor</code> sessions and backfills titles, projects, prompts,
+              turns, and subagents automatically.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon emerald">◧</div>
+            <h3>Cursor pricing built in</h3>
+            <p>
+              A dedicated, editable Cursor rate card prices Grok, Composer, and routed
+              third-party models alongside Claude and GPT.
             </p>
           </div>
           <div class="feature-card">
@@ -2806,15 +2952,15 @@
             <h3>Plugin marketplace</h3>
             <p>
               Fourteen shared Claude Code and Codex plugins add analytics, reporting, safe run
-              control, integrations, platform operations, session forensics, and workflow intelligence.
+              control, integrations, and session forensics.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon indigo">✦</div>
             <h3>Extensible by default</h3>
             <p>
-              The marketplace includes 66 packaged skills, 18 Claude subagents, 34 Claude commands,
-              and two MCP-enabled plugins. The skills.sh CLI discovers 77 repository skills.
+              The marketplace ships 66 skills, 18 subagents, 34 commands, and two MCP-enabled
+              plugins. The skills.sh CLI discovers 77 repository skills.
             </p>
           </div>
           <div class="feature-card">
@@ -2837,31 +2983,31 @@
             <div class="feature-icon cyan">◌</div>
             <h3>Accurate idle state</h3>
             <p>
-              A watchdog reconciles cancelled turns that emit no hook, so cards never remain
-              falsely busy. Waiting badges explain why.
+              A watchdog reconciles cancelled turns that emit no hook, so cards never stay
+              falsely busy. Waiting badges explain the reason.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon amber">📡</div>
             <h3>API documentation</h3>
             <p>
-              Browse the offline OpenAPI reference in interactive Swagger at <code>/api/docs</code>
-              or readable ReDoc at <code>/api/redoc</code>.
+              Browse the OpenAPI reference in interactive Swagger at <code>/api/docs</code> or
+              readable ReDoc at <code>/api/redoc</code> — fully offline.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon rose">🧩</div>
             <h3>VS Code extension</h3>
             <p>
-              Keep active sessions, agents, and tool activity in a dashboard sidebar. It ships as
-              a dependency-free VSIX.
+              Keep active sessions, agents, and tool activity in an editor sidebar. It ships as a
+              dependency-free VSIX you install locally.
             </p>
           </div>
           <div class="feature-card">
-            <div class="feature-icon violet">🍎🪟</div>
-            <h3>Native desktop app</h3>
+            <div class="feature-icon violet">🍎</div>
+            <h3>Native desktop apps</h3>
             <p>
-              Use the full dashboard as a macOS <code>.app</code> or Windows <code>.exe</code>,
+              Run the full dashboard as a macOS <code>.app</code> or a Windows <code>.exe</code>,
               with the Express server embedded in-process.
             </p>
           </div>
@@ -2877,16 +3023,16 @@
             <div class="feature-icon cyan">📰</div>
             <h3>Live activity feed</h3>
             <p>
-              Pause and resume the streaming log, filter by event dimensions, expand payloads,
-              and open the related session.
+              Pause and resume the streaming log, filter by event dimensions, expand raw
+              payloads, and open the session behind any row.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon emerald">📥</div>
             <h3>History import</h3>
             <p>
-              Rescan Claude Code or Codex, import a directory, or drop a transcript archive.
-              Idempotent imports report progress live.
+              Rescan Claude Code, Cursor, or Codex history. Manual provider imports stay
+              idempotent and report their progress live.
             </p>
           </div>
           <div class="feature-card">
@@ -2894,7 +3040,7 @@
             <h3>Automatic discovery</h3>
             <p>
               Background sync watches local session folders and brings in new or changed work,
-              even when no hook fired.
+              even when no hook ever fired for it.
             </p>
           </div>
           <div class="feature-card">
@@ -2902,16 +3048,23 @@
             <h3>Remote data sources</h3>
             <p>
               Pull Claude Code and Codex histories over SSH, preserve Codex renamed titles, and
-              filter the whole dashboard by source. A machine behind NAT that SSH cannot reach can
-              push its own batches instead, on an opt-in token.
+              filter the whole dashboard by source.
+            </p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon emerald">⇄</div>
+            <h3>Push-mode ingest</h3>
+            <p>
+              A machine behind NAT that SSH cannot reach pushes its own batches to the dashboard
+              instead, gated on an opt-in token.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon amber">🔔</div>
             <h3>Cross-surface notifications</h3>
             <p>
-              Choose session and agent events to notify. The web uses VAPID Web Push while macOS
-              desktop sends native toasts.
+              Choose the session and agent events worth a ping. The web uses VAPID Web Push while
+              macOS desktop sends native toasts.
             </p>
           </div>
           <div class="feature-card">
@@ -2927,7 +3080,7 @@
             <h3>Tabby quick actions</h3>
             <p>
               Open Tabby with a click or <code>⌘B</code> for status, shortcuts, and an Ask box.
-              She respects reduced motion.
+              She respects reduced-motion preferences.
             </p>
           </div>
           <div class="feature-card">
@@ -2935,7 +3088,7 @@
             <h3>Subtle sound cues</h3>
             <p>
               Hear when a run starts, finishes, or fails. Every chime is synthesized in the
-              browser — no audio files, no dependencies — and toggles off in Settings.
+              browser, with no audio files, and toggles off in Settings.
             </p>
           </div>
           <div class="feature-card">
@@ -2950,15 +3103,15 @@
             <div class="feature-icon cyan">⌁</div>
             <h3>Transcript inspection</h3>
             <p>
-              Codex replay includes native titles and <code>exec</code> output. Expand timeline
-              events to inspect their raw hook payload.
+              Codex replay includes native titles and <code>exec</code> output. Expand any
+              timeline event to inspect its raw hook payload.
             </p>
           </div>
           <div class="feature-card">
             <div class="feature-icon violet">🔄</div>
             <h3>One-click self-update</h3>
             <p>
-              Check the upstream remote, then pull, reinstall, rebuild, and restart from one
+              Check the upstream remote, then pull, reinstall, rebuild, and restart from a single
               action on web or desktop.
             </p>
           </div>
@@ -3237,7 +3390,7 @@
               <span class="showcase-expand-icon">⤢</span>
               <div class="showcase-overlay">
                 <h4>Settings</h4>
-                <p>Claude and Codex pricing, provider-scoped data, live-configurable session homes, selection-aware first-run hook readiness, and real-time lifecycle states that keep active, waiting, and completed cards accurate — including compact two-request task history for either provider</p>
+                <p>Separate Claude, Cursor, and Codex pricing, provider-scoped data, live session paths, selection-aware first-run readiness, and accurate active, waiting, and completed cards — including native Cursor subtitles and durable conversation history.</p>
               </div>
             </div>
           </div>

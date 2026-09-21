@@ -389,6 +389,7 @@ import type {
   AlertRule,
   Analytics,
   CostResult,
+  CursorModelPricing,
   DashboardEvent,
   GptModelPricing,
   ModelPricing,
@@ -1091,11 +1092,12 @@ export const api = {
      *
      * @returns `{ ok, pricing }` — the full default rule list now in effect.
      */
-    resetPricing: (provider?: "claude" | "codex") =>
+    resetPricing: (provider?: "claude" | "cursor" | "codex") =>
       request<{
         ok: boolean;
-        provider: "claude" | "codex" | "both";
+        provider: "claude" | "cursor" | "codex" | "both";
         pricing: ModelPricing[];
+        cursor_pricing: CursorModelPricing[];
         gpt_pricing: GptModelPricing[];
       }>("/settings/reset-pricing", {
         method: "POST",
@@ -1252,6 +1254,19 @@ export const api = {
      * @returns `{ pricing }` — the full list of {@link ModelPricing} rules.
      */
     list: () => request<{ pricing: ModelPricing[] }>("/pricing"),
+    /** GET /api/pricing/cursor - Cursor-native and routed model price rules. */
+    listCursor: () => request<{ pricing: CursorModelPricing[] }>("/pricing/cursor"),
+    /** PUT /api/pricing/cursor - create or update a Cursor price rule. */
+    upsertCursor: (data: Omit<CursorModelPricing, "updated_at">) =>
+      request<{ pricing: CursorModelPricing }>("/pricing/cursor", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    /** DELETE /api/pricing/cursor/:pattern - remove a Cursor price rule. */
+    deleteCursor: (pattern: string) =>
+      request<{ ok: boolean }>(`/pricing/cursor/${encodeURIComponent(pattern)}`, {
+        method: "DELETE",
+      }),
     /** GET /api/pricing/gpt - OpenAI/Codex price rules, separate from Claude pricing. */
     listGpt: () => request<{ pricing: GptModelPricing[] }>("/pricing/gpt"),
     /** PUT /api/pricing/gpt - create or update an OpenAI/Codex price rule. */
@@ -2835,6 +2850,7 @@ export interface ImportBackupResult {
   dashboard_runs: number;
   alert_rules: number;
   model_pricing: number;
+  cursor_model_pricing: number;
   /** Bundle entries that could not be restored (e.g. a session with no id). */
   errors: number;
 }

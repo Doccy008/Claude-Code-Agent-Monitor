@@ -1,6 +1,6 @@
 /**
- * @file Verifies ConversationView requests the preceding transcript page when
- * the scroll container reaches its top boundary.
+ * @file Verifies ConversationView history pagination and stable-id merging for
+ * Cursor prompt-history refreshes triggered by session updates.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -8,7 +8,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { TranscriptResult } from "../../../lib/types";
 
-const mocks = vi.hoisted(() => ({ transcript: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  transcript: vi.fn(),
+  handlers: new Set<
+    (message: { type: string; data: { id?: string; session_id?: string } }) => void
+  >(),
+}));
 
 vi.mock("../../../lib/api", () => ({
   api: {
@@ -21,7 +26,14 @@ vi.mock("../../../lib/api", () => ({
 
 vi.mock("../../../lib/eventBus", () => ({
   eventBus: {
-    subscribe: vi.fn(() => () => {}),
+    subscribe: vi.fn(
+      (
+        handler: (message: { type: string; data: { id?: string; session_id?: string } }) => void
+      ) => {
+        mocks.handlers.add(handler);
+        return () => mocks.handlers.delete(handler);
+      }
+    ),
     onConnection: vi.fn(() => () => {}),
   },
 }));
@@ -39,6 +51,7 @@ function result(
 
 afterEach(() => {
   mocks.transcript.mockReset();
+  mocks.handlers.clear();
 });
 
 describe("ConversationView history pagination", () => {
@@ -95,5 +108,114 @@ describe("ConversationView history pagination", () => {
       limit: 50,
     });
     expect(screen.getByText("Older message")).toBeInTheDocument();
+  });
+
+  it("merges Cursor prompt hand-off when session_updated arrives", async () => {
+    mocks.transcript
+      .mockResolvedValueOnce(
+        result(
+          [
+            {
+              id: "cursor-prompt:0",
+              type: "user",
+              sender: "user",
+              timestamp: null,
+              content: [{ type: "text", text: "Fix the live update" }],
+            },
+          ],
+          1,
+          1,
+          false
+        )
+      )
+      .mockResolvedValueOnce({
+        ...result(
+          [
+            {
+              id: "cursor-prompt:0",
+              type: "user",
+              sender: "user",
+              timestamp: null,
+              content: [{ type: "text", text: "Fix the live update" }],
+            },
+            {
+              id: "cursor-jsonl:2",
+              type: "assistant",
+              sender: "assistant",
+              timestamp: null,
+              content: [{ type: "text", text: "Working on it" }],
+            },
+          ],
+          1,
+          2,
+          false
+        ),
+        refresh: true,
+      });
+
+    render(<ConversationView sessionId="cursor-session" />);
+    await screen.findByText("Fix the live update");
+    for (const handler of mocks.handlers) {
+      handler({ type: "session_updated", data: { id: "cursor-session" } });
+    }
+
+    await screen.findByText("Working on it");
+    expect(screen.getAllByText("Fix the live update")).toHaveLength(1);
+    expect(mocks.transcript).toHaveBeenLastCalledWith("cursor-session", {
+      agent_id: undefined,
+      after: 1,
+      limit: 50,
+    });
+  });
+
+  it("announces incremental id-less Claude and Codex messages away from the bottom", async () => {
+    mocks.transcript
+      .mockResolvedValueOnce(
+        result(
+          [
+            {
+              type: "assistant",
+              sender: "assistant",
+              timestamp: null,
+              content: [{ type: "text", text: "Existing response" }],
+            },
+          ],
+          1,
+          1,
+          false
+        )
+      )
+      .mockResolvedValueOnce(
+        result(
+          [
+            {
+              type: "assistant",
+              sender: "assistant",
+              timestamp: null,
+              content: [{ type: "text", text: "New id-less response" }],
+            },
+          ],
+          2,
+          2,
+          false
+        )
+      );
+
+    render(<ConversationView sessionId="claude-session" />);
+    await screen.findByText("Existing response");
+
+    const container = screen.getByTestId("transcript-scroll-container");
+    Object.defineProperties(container, {
+      scrollHeight: { configurable: true, value: 1_000 },
+      clientHeight: { configurable: true, value: 200 },
+      scrollTop: { configurable: true, writable: true, value: 100 },
+    });
+    fireEvent.scroll(container);
+    for (const handler of mocks.handlers) {
+      handler({ type: "new_event", data: { session_id: "claude-session" } });
+    }
+
+    await screen.findByText("New id-less response");
+    expect(screen.getByRole("button", { name: /new messages/i })).toBeInTheDocument();
   });
 });

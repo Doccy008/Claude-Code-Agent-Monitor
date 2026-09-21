@@ -171,7 +171,7 @@
       "valueDateRangeDesc": "이벤트의 created_at에 대한 ISO 날짜/시간 상한·하한입니다.",
       "statusesTitle": "상태 배지",
       "statusesIntro": "상태는 event_type에서 파생됩니다. 각 행에서 볼 수 있는 값입니다.",
-      "statusWorkingDesc": "작업이 시작되었거나 진행 중입니다: 프롬프트가 제출되었거나, Codex 턴이 시작되었거나, 도구가 곧 실행됩니다(PreToolUse, UserPromptSubmit, codex_user_message, codex_task_started, codex_tool_call).",
+      "statusWorkingDesc": "작업이 시작되었거나 진행 중입니다: 프롬프트가 제출되었거나, Codex 턴이 시작되었거나, 도구가 곧 실행됩니다(PreToolUse, UserPromptSubmit, cursor_user_message, codex_user_message, codex_task_started, codex_tool_call).",
       "statusWaitingDesc": "도구가 결과를 반환했고 턴이 계속되거나, 진행 상태를 신뢰할 수 없는 생명주기/메타데이터 이벤트입니다(PostToolUse, codex_*_end 도구 결과, SessionStart, Notification, TurnDuration, codex_turn_aborted). 메타데이터 이벤트는 Waiting 배지를 유지하지만, 도구 결과만 매칭하는 Waiting 필터 프리셋에는 의도적으로 포함되지 않습니다.",
       "statusCompletedDesc": "턴 또는 생명주기 경계입니다(Stop, SessionEnd, SubagentStop, Compaction, codex_task_complete, codex_context_compacted).",
       "statusErrorDesc": "오류가 기록되었습니다(error, APIError, codex_error).",

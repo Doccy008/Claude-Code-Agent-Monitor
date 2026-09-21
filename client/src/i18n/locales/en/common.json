@@ -171,7 +171,7 @@
       "valueDateRangeDesc": "ISO datetime lower/upper bounds on the event's created_at.",
       "statusesTitle": "Status badges",
       "statusesIntro": "Status is derived from event_type. It's what you see on each row.",
-      "statusWorkingDesc": "Work is starting or under way: a prompt was submitted, a Codex turn began, or a tool is about to run (PreToolUse, UserPromptSubmit, codex_user_message, codex_task_started, codex_tool_call).",
+      "statusWorkingDesc": "Work is starting or under way: a prompt was submitted, a Codex turn began, or a tool is about to run (PreToolUse, UserPromptSubmit, cursor_user_message, codex_user_message, codex_task_started, codex_tool_call).",
       "statusWaitingDesc": "A tool returned and the turn continues, or the event is lifecycle/metadata with no reliable progress meaning (PostToolUse, the codex_*_end tool results, SessionStart, Notification, TurnDuration, codex_turn_aborted). Metadata events keep the Waiting badge but are deliberately left out of the Waiting filter preset, which matches only tool results.",
       "statusCompletedDesc": "Turn or lifecycle boundary (Stop, SessionEnd, SubagentStop, Compaction, codex_task_complete, codex_context_compacted).",
       "statusErrorDesc": "An error was recorded (error, APIError, codex_error).",

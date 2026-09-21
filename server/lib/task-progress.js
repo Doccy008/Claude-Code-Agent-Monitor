@@ -1,9 +1,9 @@
 /**
  * @file Derives owner-attributed task progress from Claude and Codex JSONL
- * transcripts plus persisted task and session lifecycle events. Top-level
- * work boundaries expire older tracker state, turn-end markers discard
- * unfinished state, and bounded incremental transcript caching keeps session
- * APIs safe.
+ * transcripts plus persisted Claude, Cursor, and Codex lifecycle events.
+ * Top-level work boundaries expire older tracker state, turn-end markers
+ * discard unfinished state, and bounded incremental transcript caching keeps
+ * session APIs safe.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -42,7 +42,7 @@ function freshParseTtlMs() {
   return Number.isFinite(value) && value >= 0 ? value : FRESH_PARSE_TTL_MS;
 }
 const cache = new Map();
-const RESET_ALL_EVENT_TYPES = new Set(["UserPromptSubmit"]);
+const RESET_ALL_EVENT_TYPES = new Set(["UserPromptSubmit", "cursor_user_message"]);
 const FINALIZE_ALL_EVENT_TYPES = new Set(["Stop", "SessionEnd", "Interrupted"]);
 
 function cleanText(value) {

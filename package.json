@@ -1,10 +1,10 @@
 {
   "name": "agent-dashboard",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "bin": {
     "ccam": "bin/ccam.js"
   },
-  "description": "Real-time dashboard for tracking Claude Code agent activity",
+  "description": "Real-time dashboard for tracking Claude Code, Cursor, and Codex agent activity",
   "private": true,
   "type": "commonjs",
   "main": "server/index.js",
@@ -32,6 +32,8 @@
     "claude",
     "claude-code",
     "anthropic",
+    "cursor",
+    "codex",
     "agent",
     "dashboard",
     "real-time",

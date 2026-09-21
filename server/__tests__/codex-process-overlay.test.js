@@ -444,6 +444,193 @@ describe("Codex process overlay lifecycle", () => {
     assert.equal(getCodexProcessSessions([{ id: resumedId, cwd, status: "active" }]).length, 1);
   });
 
+  it("never demotes a working Codex session while its process holds the thread", async () => {
+    const cwd = "/workspace/live-codex-turn";
+    const sessionId = "019fe111-1111-7250-b7d2-a4bdf6772d3f";
+    const agentId = `codex:${sessionId}`;
+    const timestamp = "2026-08-07T21:16:03.000Z";
+    const metadata = JSON.stringify({ provider: "codex", transcript_path: null });
+    stmts.insertCodexSession.run(
+      sessionId,
+      "Live Codex session",
+      "active",
+      cwd,
+      "gpt-5.6-luna",
+      "local",
+      timestamp,
+      timestamp,
+      metadata
+    );
+    stmts.insertAgent.run(
+      agentId,
+      sessionId,
+      "Codex",
+      "main",
+      null,
+      "working",
+      null,
+      null,
+      metadata
+    );
+
+    const change = await refreshCodexProcessOverlay({
+      probe: { available: true, processes: [{ pid: 4801, cwd, sessionId }] },
+      now: "2026-08-07T21:16:04.000Z",
+    });
+
+    // A held rollout/writer lock only proves the thread is open. The rollout
+    // owns the lifecycle of a turn that is still running.
+    assert.equal(change.resumed.length, 0);
+    const agent = stmts.getAgent.get(agentId);
+    assert.equal(agent.status, "working");
+    assert.equal(agent.awaiting_input_since, null);
+    assert.equal(stmts.getSession.get(sessionId).awaiting_reason, null);
+
+    db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+  });
+
+  it("keeps a waiting session's own reason instead of restamping it each tick", async () => {
+    const cwd = "/workspace/waiting-codex-turn";
+    const sessionId = "019fe222-2222-7250-b7d2-a4bdf6772d3f";
+    const agentId = `codex:${sessionId}`;
+    const timestamp = "2026-08-07T21:16:03.000Z";
+    const metadata = JSON.stringify({ provider: "codex", transcript_path: null });
+    stmts.insertCodexSession.run(
+      sessionId,
+      "Idle Codex session",
+      "active",
+      cwd,
+      "gpt-5.6-luna",
+      "local",
+      timestamp,
+      timestamp,
+      metadata
+    );
+    stmts.insertAgent.run(
+      agentId,
+      sessionId,
+      "Codex",
+      "main",
+      null,
+      "waiting",
+      null,
+      null,
+      metadata
+    );
+    const stoppedAt = "2026-08-07T21:10:00.000Z";
+    stmts.setSessionAwaitingInput.run(stoppedAt, "stop", sessionId);
+    stmts.setAgentAwaitingInput.run(stoppedAt, "stop", agentId);
+
+    const probe = { available: true, processes: [{ pid: 4802, cwd, sessionId }] };
+    await refreshCodexProcessOverlay({ probe, now: "2026-08-07T21:16:04.000Z" });
+    await refreshCodexProcessOverlay({ probe, now: "2026-08-07T21:16:05.000Z" });
+
+    // "waiting since" drives the card's elapsed badge, so restamping it would
+    // reset the timer on every probe and erase why the session is waiting.
+    const agent = stmts.getAgent.get(agentId);
+    assert.equal(agent.awaiting_reason, "stop");
+    assert.equal(agent.awaiting_input_since, stoppedAt);
+    assert.equal(stmts.getSession.get(sessionId).awaiting_reason, "stop");
+
+    db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+  });
+
+  it("hints a resumed thread once, not on every probe tick", async () => {
+    const cwd = "/workspace/resumed-once";
+    const sessionId = "019fe333-3333-7250-b7d2-a4bdf6772d3f";
+    const agentId = `codex:${sessionId}`;
+    const timestamp = "2026-08-07T21:16:03.000Z";
+    const metadata = JSON.stringify({ provider: "codex", transcript_path: null });
+    stmts.insertCodexSession.run(
+      sessionId,
+      "Finished Codex session",
+      "completed",
+      cwd,
+      "gpt-5.6-luna",
+      "local",
+      timestamp,
+      timestamp,
+      metadata
+    );
+    stmts.insertAgent.run(
+      agentId,
+      sessionId,
+      "Codex",
+      "main",
+      null,
+      "completed",
+      null,
+      null,
+      metadata
+    );
+
+    const probe = { available: true, processes: [{ pid: 4803, cwd, sessionId }] };
+    const first = await refreshCodexProcessOverlay({ probe, now: "2026-08-07T21:16:04.000Z" });
+    assert.equal(first.resumed.length, 1);
+    assert.equal(stmts.getAgent.get(agentId).status, "waiting");
+
+    // Prove the hint is edge-triggered rather than re-applied per tick: put the
+    // agent back the way the resume picker found it, and the next tick with the
+    // same process must leave it alone.
+    stmts.updateAgent.run(null, "completed", null, null, null, null, agentId);
+    const second = await refreshCodexProcessOverlay({ probe, now: "2026-08-07T21:16:05.000Z" });
+    assert.equal(second.resumed.length, 0);
+    assert.equal(stmts.getAgent.get(agentId).status, "completed");
+
+    db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+  });
+
+  it("hints a replacement process that reopens the same durable thread", async () => {
+    const cwd = "/workspace/resumed-replacement";
+    const sessionId = "019fe444-4444-7250-b7d2-a4bdf6772d3f";
+    const agentId = `codex:${sessionId}`;
+    const timestamp = "2026-08-07T21:16:03.000Z";
+    const metadata = JSON.stringify({ provider: "codex", transcript_path: null });
+    stmts.insertCodexSession.run(
+      sessionId,
+      "Reopened Codex session",
+      "completed",
+      cwd,
+      "gpt-5.6-luna",
+      "local",
+      timestamp,
+      timestamp,
+      metadata
+    );
+    stmts.insertAgent.run(
+      agentId,
+      sessionId,
+      "Codex",
+      "main",
+      null,
+      "completed",
+      null,
+      null,
+      metadata
+    );
+
+    const first = await refreshCodexProcessOverlay({
+      probe: { available: true, processes: [{ pid: 4804, cwd, sessionId }] },
+      now: "2026-08-07T21:16:04.000Z",
+    });
+    assert.equal(first.resumed.length, 1);
+
+    db.prepare("UPDATE sessions SET status = 'completed', ended_at = updated_at WHERE id = ?").run(
+      sessionId
+    );
+    stmts.updateAgent.run(null, "completed", null, null, null, timestamp, agentId);
+
+    const replacement = await refreshCodexProcessOverlay({
+      probe: { available: true, processes: [{ pid: 4805, cwd, sessionId }] },
+      now: "2026-08-07T21:17:04.000Z",
+    });
+    assert.equal(replacement.resumed.length, 1);
+    assert.equal(stmts.getSession.get(sessionId).status, "active");
+    assert.equal(stmts.getAgent.get(agentId).status, "waiting");
+
+    db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+  });
+
   it("does not let completed history hide an unrelated new process in the same cwd", () => {
     const cwd = "/workspace/reused-cwd";
     const change = reconcileCodexProcessOverlay(

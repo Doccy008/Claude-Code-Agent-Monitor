@@ -1,6 +1,6 @@
 /**
  * @file Database setup and access layer using SQLite for sessions, agents,
- * events, token usage, and model pricing. Handles schema/migrations and
+ * events, token usage, and Claude, Cursor, and Codex model pricing. Handles schema/migrations and
  * exposes prepared statements, including card-ready task/prompt previews.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
@@ -285,6 +285,19 @@ db.exec(`
     fast_cached_input_per_mtok REAL NOT NULL DEFAULT 0,
     fast_cache_write_per_mtok REAL NOT NULL DEFAULT 0,
     fast_output_per_mtok REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+
+  -- Cursor publishes its own four-column rate card. Keep it separate from
+  -- Claude and Codex because Cursor-native and routed third-party models can
+  -- have Cursor-specific prices (including distinct Fast model identifiers).
+  CREATE TABLE IF NOT EXISTS cursor_model_pricing (
+    model_pattern TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    input_per_mtok REAL NOT NULL DEFAULT 0,
+    cache_write_per_mtok REAL NOT NULL DEFAULT 0,
+    cache_read_per_mtok REAL NOT NULL DEFAULT 0,
+    output_per_mtok REAL NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
   );
 
@@ -740,6 +753,83 @@ const DEFAULT_GPT_PRICING = [
   gptRate("davinci-002%", "Davinci-002", [2, 0, 0, 2]),
   gptRate("babbage-002%", "Babbage-002", [0.4, 0, 0, 0.4]),
 ];
+
+// Cursor model rates: https://cursor.com/docs/models-and-pricing (2026-09-19).
+// Columns are pattern, label, input, cache write, cache read, and output,
+// all in USD per million tokens. A zero cache-write rate means Cursor marks
+// that category unavailable rather than free; it is still shown as "—" in UI.
+const cursorRate = (pattern, name, input, cacheWrite, cacheRead, output) => [
+  pattern,
+  name,
+  input,
+  cacheWrite,
+  cacheRead,
+  output,
+];
+const DEFAULT_CURSOR_PRICING = [
+  cursorRate("grok-4.6-fast%", "Cursor Grok 4.6 (Fast)", 4, 0, 1, 12),
+  cursorRate("grok-4.6%", "Cursor Grok 4.6", 2, 0, 0.5, 6),
+  cursorRate("grok-4.5-fast%", "Cursor Grok 4.5 (Fast)", 4, 0, 1, 18),
+  cursorRate("grok-4.5%", "Cursor Grok 4.5", 2, 0, 0.5, 6),
+  cursorRate("composer-2.5-fast%", "Cursor Composer 2.5 (Fast)", 3, 0, 0.5, 15),
+  cursorRate("composer-2.5%", "Cursor Composer 2.5", 0.5, 0, 0.2, 2.5),
+  cursorRate("claude-4-sonnet-1m%", "Claude 4 Sonnet 1M", 6, 7.5, 0.6, 22.5),
+  cursorRate("claude-4-sonnet%", "Claude 4 Sonnet", 3, 3.75, 0.3, 15),
+  cursorRate("claude-4.5-haiku%", "Claude 4.5 Haiku", 1, 1.25, 0.1, 5),
+  cursorRate("claude-4.5-opus%", "Claude 4.5 Opus", 5, 6.25, 0.5, 25),
+  cursorRate("claude-4.5-sonnet%", "Claude 4.5 Sonnet", 3, 3.75, 0.3, 15),
+  cursorRate("claude-4.6-opus%", "Claude 4.6 Opus", 5, 6.25, 0.5, 25),
+  cursorRate("claude-4.6-sonnet%", "Claude 4.6 Sonnet", 3, 3.75, 0.3, 15),
+  cursorRate("claude-opus-4.7-fast%", "Claude Opus 4.7 (fast mode)", 30, 37.5, 3, 150),
+  cursorRate("claude-4.7-opus%", "Claude 4.7 Opus", 5, 6.25, 0.5, 25),
+  cursorRate("claude-fable-5.1%", "Claude Fable 5.1", 10, 12.5, 0.25, 50),
+  cursorRate("claude-fable-5%", "Claude Fable 5", 10, 12.5, 1, 50),
+  cursorRate("claude-opus-4.8%", "Claude Opus 4.8", 5, 6.25, 0.5, 25),
+  cursorRate("claude-opus-5%", "Claude Opus 5", 5, 6.25, 0.5, 25),
+  cursorRate("claude-sonnet-5%", "Claude Sonnet 5", 2, 2.5, 0.2, 10),
+  cursorRate("gemini-2.5-flash%", "Gemini 2.5 Flash", 0.3, 0, 0.03, 2.5),
+  cursorRate("gemini-3-flash%", "Gemini 3 Flash", 0.5, 0, 0.05, 3),
+  cursorRate("gemini-3-pro-image-preview%", "Gemini 3 Pro Image Preview", 2, 0, 0.2, 12),
+  cursorRate("gemini-3-pro%", "Gemini 3 Pro", 2, 0, 0.2, 12),
+  cursorRate("gemini-3.1-pro%", "Gemini 3.1 Pro", 2, 0, 0.2, 12),
+  cursorRate("gemini-3.5-flash%", "Gemini 3.5 Flash", 1.5, 0, 0.15, 9),
+  cursorRate("gemini-3.6-flash%", "Gemini 3.6 Flash", 1.5, 0, 0.15, 7.5),
+  cursorRate("gemini-3.7-flash%", "Gemini 3.7 Flash", 0.75, 0, 0.075, 3.5),
+  cursorRate("gemini-3.8-flash%", "Gemini 3.8 Flash", 0.75, 0, 0.075, 3.5),
+  cursorRate("glm-5.2%", "GLM 5.2", 1.4, 0, 0.26, 4.4),
+  cursorRate("gpt-5-fast%", "GPT-5 Fast", 2.5, 0, 0.25, 20),
+  cursorRate("gpt-5-mini%", "GPT-5 Mini", 0.25, 0, 0.025, 2),
+  cursorRate("gpt-5-codex%", "GPT-5-Codex", 1.25, 0, 0.125, 10),
+  cursorRate("gpt-5.1-codex-max%", "GPT-5.1 Codex Max", 1.25, 0, 0.125, 10),
+  cursorRate("gpt-5.1-codex-mini%", "GPT-5.1 Codex Mini", 0.25, 0, 0.025, 2),
+  cursorRate("gpt-5.1-codex%", "GPT-5.1 Codex", 1.25, 0, 0.125, 10),
+  cursorRate("gpt-5.2-codex%", "GPT-5.2 Codex", 1.75, 0, 0.175, 14),
+  cursorRate("gpt-5.2%", "GPT-5.2", 1.75, 0, 0.175, 14),
+  cursorRate("gpt-5.3-codex%", "GPT-5.3 Codex", 1.75, 0, 0.175, 14),
+  cursorRate("gpt-5.4-mini%", "GPT-5.4 Mini", 0.75, 0, 0.075, 4.5),
+  cursorRate("gpt-5.4-nano%", "GPT-5.4 Nano", 0.2, 0, 0.02, 1.25),
+  cursorRate("gpt-5.4%", "GPT-5.4", 2.5, 0, 0.25, 15),
+  cursorRate("gpt-5.5%", "GPT-5.5", 5, 0, 0.5, 30),
+  cursorRate("gpt-5.6-luna%", "GPT-5.6 Luna", 0.2, 0.25, 0.02, 1.2),
+  cursorRate("gpt-5.6-sol%", "GPT-5.6 Sol", 4, 5, 0.4, 20),
+  cursorRate("gpt-5.6-terra%", "GPT-5.6 Terra", 2, 2.5, 0.2, 12),
+  cursorRate("gpt-5%", "GPT-5", 1.25, 0, 0.125, 10),
+  cursorRate("kimi-k2.7-code%", "Kimi K2.7 Code", 0.95, 0, 0.19, 4),
+  cursorRate("kimi-k3%", "Kimi K3", 3, 0, 0.3, 15),
+  cursorRate("muse-spark-1.3%", "Muse Spark 1.3", 1.25, 0, 0.15, 4.25),
+];
+
+function seedCursorPricing(dbHandle = db) {
+  const insert = dbHandle.prepare(`
+    INSERT OR IGNORE INTO cursor_model_pricing
+      (model_pattern, display_name, input_per_mtok, cache_write_per_mtok, cache_read_per_mtok, output_per_mtok)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  dbHandle.transaction((rows) => {
+    for (const row of rows) insert.run(...row);
+  })(DEFAULT_CURSOR_PRICING);
+}
+seedCursorPricing();
 
 // Fast requests have their own short AND long rate cards. Explicit published
 // values avoid applying a guessed multiplier to unsupported model/tier pairs.
@@ -1801,7 +1891,7 @@ const stmts = {
      FROM events
      WHERE session_id = ? AND event_type IN (
        'TaskCreated', 'TaskCompleted',
-       'UserPromptSubmit', 'Stop', 'SubagentStop', 'SessionEnd', 'Interrupted'
+       'UserPromptSubmit', 'cursor_user_message', 'Stop', 'SubagentStop', 'SessionEnd', 'Interrupted'
      )
      ORDER BY created_at ASC, id ASC`
   ),
@@ -2069,6 +2159,23 @@ const stmts = {
   setGptFastLongPricing: db.prepare(`UPDATE gpt_model_pricing SET
     ${GPT_FAST_LONG_FIELDS.map((field) => `${field} = ?`).join(", ")} WHERE model_pattern = ?`),
   deleteGptPricing: db.prepare("DELETE FROM gpt_model_pricing WHERE model_pattern = ?"),
+  // Cursor pricing uses the four columns published by Cursor for both native
+  // and routed third-party models.
+  listCursorPricing: db.prepare("SELECT * FROM cursor_model_pricing ORDER BY display_name ASC"),
+  getCursorPricing: db.prepare("SELECT * FROM cursor_model_pricing WHERE model_pattern = ?"),
+  upsertCursorPricing: db.prepare(`
+    INSERT INTO cursor_model_pricing
+      (model_pattern, display_name, input_per_mtok, cache_write_per_mtok, cache_read_per_mtok, output_per_mtok, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    ON CONFLICT(model_pattern) DO UPDATE SET
+      display_name = excluded.display_name,
+      input_per_mtok = excluded.input_per_mtok,
+      cache_write_per_mtok = excluded.cache_write_per_mtok,
+      cache_read_per_mtok = excluded.cache_read_per_mtok,
+      output_per_mtok = excluded.output_per_mtok,
+      updated_at = excluded.updated_at
+  `),
+  deleteCursorPricing: db.prepare("DELETE FROM cursor_model_pricing WHERE model_pattern = ?"),
   toolUsageCounts: db.prepare(`
     SELECT tool_name, COUNT(*) as count
     FROM events
@@ -2313,9 +2420,11 @@ module.exports = {
   DB_PATH,
   DEFAULT_PRICING,
   DEFAULT_GPT_PRICING,
+  DEFAULT_CURSOR_PRICING,
   applyIntroPricing,
   correctSonnet5StandardRate,
   seedGptPricing,
+  seedCursorPricing,
   repairLegacyGptPricing,
   correctPublishedPricing,
   GPT_FAST_LONG_FIELDS,

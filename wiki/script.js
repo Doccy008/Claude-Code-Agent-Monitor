@@ -2131,61 +2131,64 @@ document.querySelectorAll(".diagram-toggle").forEach((toggle) => {
   );
   const META = {
     en: {
-      title: "Claude Code Agent Monitor - Project Wiki",
+      title: "Claude Code Agent Monitor Wiki — Setup, API, Hooks & MCP",
       description:
-        "Comprehensive technical wiki for Claude Code Agent Monitor — real-time local monitoring with MCP server integration plus Claude Code and Codex extension scaffolding.",
-      socialTitle: "Claude Code Agent Monitor - Project Wiki",
+        "Complete technical wiki for Claude Code Agent Monitor: install, hooks, REST API, SQLite schema, MCP tools, plugins, deployment, Cursor and Codex support.",
+      socialTitle: "Claude Code Agent Monitor Wiki — Setup, API, Hooks & MCP",
       socialDescription:
-        "Comprehensive technical wiki for Claude Code Agent Monitor — real-time local monitoring with MCP server integration plus Claude Code and Codex extension scaffolding.",
+        "Complete technical wiki for Claude Code Agent Monitor: install, hooks, REST API, SQLite schema, MCP tools, plugins, deployment, Cursor and Codex support.",
       twitterDescription:
-        "Real-time local monitoring for Claude Code agent activity with MCP integration, extension scaffolding, analytics, and WebSocket push.",
-      socialImageAlt: "Claude Code Agent Monitor — real-time Claude Code monitoring platform",
+        "Install, hooks, REST API, SQLite schema, MCP tools, plugins, and deployment for the local-first Claude Code, Cursor, and Codex dashboard.",
+      socialImageAlt:
+        "Claude Code Agent Monitor — real-time local dashboard for Claude Code, Cursor, and Codex",
     },
     zh: {
-      title: "Claude Code Agent Monitor - 项目维基",
+      title: "Claude Code Agent Monitor 维基 — 安装、API、Hook 与 MCP",
       description:
-        "Claude Code Agent Monitor 综合技术维基：本地实时监控、MCP Server 集成，以及 Claude Code 和 Codex 扩展脚手架。",
-      socialTitle: "Claude Code Agent Monitor - 项目维基",
+        "Claude Code Agent Monitor 完整技术维基：安装、Hook、REST API、SQLite 架构、MCP 工具、插件、部署，以及 Cursor 和 Codex 支持。",
+      socialTitle: "Claude Code Agent Monitor 维基 — 安装、API、Hook 与 MCP",
       socialDescription:
-        "Claude Code Agent Monitor 综合技术维基：本地实时监控、MCP Server 集成，以及 Claude Code 和 Codex 扩展脚手架。",
+        "Claude Code Agent Monitor 完整技术维基：安装、Hook、REST API、SQLite 架构、MCP 工具、插件、部署，以及 Cursor 和 Codex 支持。",
       twitterDescription:
-        "面向 Claude Code Agent 活动的本地实时监控，集成 MCP、扩展脚手架、分析和 WebSocket 推送。",
-      socialImageAlt: "Claude Code Agent Monitor — Claude Code 实时监控平台",
+        "本地优先的 Claude Code、Cursor 与 Codex 仪表盘的安装、Hook、REST API、SQLite 架构、MCP 工具、插件与部署指南。",
+      socialImageAlt:
+        "Claude Code Agent Monitor — 面向 Claude Code、Cursor 和 Codex 的本地实时仪表盘",
     },
     vi: {
-      title: "Claude Code Agent Monitor - Wiki dự án",
+      title: "Wiki Claude Code Agent Monitor — Cài đặt, API, Hook & MCP",
       description:
-        "Wiki kỹ thuật toàn diện cho Claude Code Agent Monitor — giám sát cục bộ theo thời gian thực, tích hợp MCP Server và bộ khung tiện ích Claude Code cùng Codex.",
-      socialTitle: "Claude Code Agent Monitor - Wiki dự án",
+        "Wiki kỹ thuật đầy đủ cho Claude Code Agent Monitor: cài đặt, hook, REST API, lược đồ SQLite, công cụ MCP, plugin, triển khai, hỗ trợ Cursor và Codex.",
+      socialTitle: "Wiki Claude Code Agent Monitor — Cài đặt, API, Hook & MCP",
       socialDescription:
-        "Wiki kỹ thuật toàn diện cho Claude Code Agent Monitor — giám sát cục bộ theo thời gian thực, tích hợp MCP Server và bộ khung tiện ích Claude Code cùng Codex.",
+        "Wiki kỹ thuật đầy đủ cho Claude Code Agent Monitor: cài đặt, hook, REST API, lược đồ SQLite, công cụ MCP, plugin, triển khai, hỗ trợ Cursor và Codex.",
       twitterDescription:
-        "Giám sát cục bộ theo thời gian thực cho hoạt động Agent Claude Code, với MCP, tiện ích mở rộng, phân tích và WebSocket.",
+        "Cài đặt, hook, REST API, lược đồ SQLite, công cụ MCP, plugin và triển khai cho bảng điều khiển cục bộ dành cho Claude Code, Cursor và Codex.",
       socialImageAlt:
-        "Claude Code Agent Monitor — nền tảng giám sát Claude Code theo thời gian thực",
+        "Claude Code Agent Monitor — bảng điều khiển cục bộ theo thời gian thực cho Claude Code, Cursor và Codex",
     },
     ko: {
-      title: "Claude Code Agent Monitor - 프로젝트 위키",
+      title: "Claude Code Agent Monitor 위키 — 설치, API, 훅, MCP",
       description:
-        "Claude Code Agent Monitor 종합 기술 위키 — 실시간 로컬 모니터링, MCP Server 통합, Claude Code 및 Codex 확장 스캐폴딩.",
-      socialTitle: "Claude Code Agent Monitor - 프로젝트 위키",
+        "Claude Code Agent Monitor 전체 기술 위키: 설치, 훅, REST API, SQLite 스키마, MCP 도구, 플러그인, 배포, Cursor 및 Codex 지원.",
+      socialTitle: "Claude Code Agent Monitor 위키 — 설치, API, 훅, MCP",
       socialDescription:
-        "Claude Code Agent Monitor 종합 기술 위키 — 실시간 로컬 모니터링, MCP Server 통합, Claude Code 및 Codex 확장 스캐폴딩.",
+        "Claude Code Agent Monitor 전체 기술 위키: 설치, 훅, REST API, SQLite 스키마, MCP 도구, 플러그인, 배포, Cursor 및 Codex 지원.",
       twitterDescription:
-        "MCP 통합, 확장 스캐폴딩, 분석, WebSocket 푸시를 갖춘 Claude Code Agent 활동 실시간 로컬 모니터링.",
-      socialImageAlt: "Claude Code Agent Monitor — 실시간 Claude Code 모니터링 플랫폼",
+        "로컬 우선 Claude Code, Cursor, Codex 대시보드의 설치, 훅, REST API, SQLite 스키마, MCP 도구, 플러그인, 배포 안내.",
+      socialImageAlt:
+        "Claude Code Agent Monitor — Claude Code, Cursor, Codex를 위한 실시간 로컬 대시보드",
     },
     es: {
-      title: "Claude Code Agent Monitor - Wiki del proyecto",
+      title: "Wiki de Claude Code Agent Monitor — Instalación, API, Hooks y MCP",
       description:
-        "Wiki técnica completa para Claude Code Agent Monitor: monitorización local en tiempo real con integración de servidor MCP y andamiaje de extensiones para Claude Code y Codex.",
-      socialTitle: "Claude Code Agent Monitor - Wiki del proyecto",
+        "Wiki técnica completa de Claude Code Agent Monitor: instalación, hooks, API REST, esquema SQLite, herramientas MCP, plugins, despliegue y soporte de Cursor y Codex.",
+      socialTitle: "Wiki de Claude Code Agent Monitor — Instalación, API, Hooks y MCP",
       socialDescription:
-        "Wiki técnica completa para Claude Code Agent Monitor: monitorización local en tiempo real con integración de servidor MCP y andamiaje de extensiones para Claude Code y Codex.",
+        "Wiki técnica completa de Claude Code Agent Monitor: instalación, hooks, API REST, esquema SQLite, herramientas MCP, plugins, despliegue y soporte de Cursor y Codex.",
       twitterDescription:
-        "Monitorización local en tiempo real de la actividad del agente Claude Code con integración MCP, andamiaje de extensiones, análisis y envío por WebSocket.",
+        "Instalación, hooks, API REST, esquema SQLite, herramientas MCP, plugins y despliegue del panel local para Claude Code, Cursor y Codex.",
       socialImageAlt:
-        "Claude Code Agent Monitor — plataforma de monitorización de Claude Code en tiempo real",
+        "Claude Code Agent Monitor — panel local en tiempo real para Claude Code, Cursor y Codex",
     },
   };
   const trH = (lang, en) => (lang === "en" ? en : (H[lang] && H[lang][norm(en)]) || en);

@@ -372,7 +372,11 @@ responses include human turns, legacy `function_call` records, and the primary
 can render the actual command flow rather than only `wait` calls. Both providers
 also expose persisted PNG/JPEG/GIF/WebP user attachments as `image` content blocks;
 missing or expired files are simply omitted, and Codex's duplicated response/event
-user records are returned as one human turn.
+user records are returned as one human turn. Cursor main sessions can return
+`prompt_history.json` turns before JSONL exists. Their messages carry stable `id`
+values; an incremental result with `refresh: true` is a latest window that clients
+merge by `id`, allowing the canonical transcript to replace the pending prompt
+without duplication.
 
 #### Read Persisted Transcript Image
 
@@ -855,6 +859,31 @@ curl -X PUT http://localhost:4820/api/pricing \
 
 ---
 
+#### Cursor Pricing Rules
+
+```http
+GET    /api/pricing/cursor
+PUT    /api/pricing/cursor
+DELETE /api/pricing/cursor/:pattern
+```
+
+Cursor sessions are priced only against this independent four-column rate card. Each row contains `model_pattern`, `display_name`, `input_per_mtok`, `cache_write_per_mtok`, `cache_read_per_mtok`, and `output_per_mtok`. Rates are USD per million tokens; every supplied rate must be finite and non-negative. Longest/more-specific patterns win, so Cursor Fast entries override their base family. A zero cache-write column represents Cursor's unavailable (`-`) value and is displayed as an em dash in Settings.
+
+```json
+{
+  "model_pattern": "grok-4.6-fast%",
+  "display_name": "Cursor Grok 4.6 (Fast)",
+  "input_per_mtok": 4,
+  "cache_write_per_mtok": 0,
+  "cache_read_per_mtok": 1,
+  "output_per_mtok": 12
+}
+```
+
+`POST /api/settings/reset-pricing` accepts `provider: "cursor"` in addition to `claude` and `codex`. Omitting the body resets all three tables. The response includes `pricing`, `cursor_pricing`, and `gpt_pricing`.
+
+---
+
 #### OpenAI GPT Pricing Rules
 
 ```http
@@ -874,7 +903,7 @@ the currently configured rate for historical estimates too; the dashboard neithe
 prices nor schedules an assumed promotional price increase. Reset Defaults deliberately replaces
 the selected provider's custom prices.
 
-`POST /api/settings/reset-pricing` accepts an optional JSON body `{ "provider": "claude" }` or `{ "provider": "codex" }` to reset only that provider's table. Omitting the body preserves the CLI/MCP compatibility behavior and resets both tables. The response returns `provider`, `pricing`, and `gpt_pricing`.
+`POST /api/settings/reset-pricing` accepts an optional provider body to reset only one table; see the Cursor section above. Omitting the body preserves compatibility and resets all provider tables.
 
 ```json
 {
@@ -1080,7 +1109,7 @@ POST /api/remote-sources
 | `remote_codex_home` | string | No | Remote Codex home (defaults to remote `~/.codex`) |
 | `enabled` | boolean | No | Whether the source is eligible for syncs (default `true`) |
 
-> **Cursor (informational):** Sessions imported from `~/.claude` include **Cursor** agent usage on that machine too — Cursor happens to use the same paths as Claude Code. CCAM does not tag which app created a session.
+> **Cursor boundary:** Remote SSH sources currently mirror Claude Code and Codex homes only. Local Cursor history is discovered independently from `DASHBOARD_CURSOR_HOME` (default `~/.cursor`); a remote Cursor home must be mounted or otherwise exposed locally before CCAM can ingest it.
 
 Returns `{ "source": RemoteSource }` with HTTP **201**.
 

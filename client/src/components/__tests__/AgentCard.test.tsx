@@ -1,7 +1,7 @@
 /**
  * @file AgentCard.test.tsx
- * @description Unit tests for the AgentCard component, including Codex-native
- * titles and transcript-derived prompt context alongside standard agent details.
+ * @description Unit tests for the AgentCard component, including consistent
+ * Claude Code/Cursor/Codex titles, subtitles, and transcript-derived context.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -229,17 +229,17 @@ describe("AgentCard", () => {
     expect(screen.queryByText(fmtCost(646.5))).not.toBeInTheDocument();
   });
 
-  it("swaps the real session title into the hook-style placeholder (Session <id8>)", () => {
+  it("uses the native Claude Code title for a hook-style placeholder", () => {
     renderCard(
       <AgentCard
         agent={makeAgent({ type: "main", name: "Main Agent - Session 329c4d24" })}
         session={{ id: "s", name: "Resumable runs UI", status: "active" } as never}
       />
     );
-    expect(screen.getByText("Main Agent - Resumable runs UI")).toBeInTheDocument();
+    expect(screen.getByText("Claude Code · Resumable runs UI")).toBeInTheDocument();
   });
 
-  it("swaps the real session title into the import-style placeholder (<folder> - <id8>)", () => {
+  it("uses the native Claude Code title for an import-style placeholder", () => {
     // Regression: imported / background-synced main agents are named
     // "Main Agent - <cwd-folder> - <id8>", which the old Session-only regex
     // could not rewrite, so they kept showing "work - e3f8e613" forever even
@@ -253,20 +253,20 @@ describe("AgentCard", () => {
       />
     );
     expect(
-      screen.getByText("Main Agent - Implement in-process libdocs MCP server")
+      screen.getByText("Claude Code · Implement in-process libdocs MCP server")
     ).toBeInTheDocument();
     expect(screen.queryByText("Main Agent - work - e3f8e613")).not.toBeInTheDocument();
   });
 
-  it("keeps the placeholder when the session name is still auto-generated", () => {
+  it("uses the stable Claude session ID while a native title is unavailable", () => {
     renderCard(
       <AgentCard
         agent={makeAgent({ type: "main", name: "Main Agent - work - e3f8e613" })}
         session={{ id: "s", name: "Session e3f8e613", status: "active" } as never}
       />
     );
-    // "Session <id8>" is suppressed as a non-name, so nothing to swap in.
-    expect(screen.getByText("Main Agent - work - e3f8e613")).toBeInTheDocument();
+    // "Session <id8>" is suppressed as a non-name, matching Cursor/Codex cards.
+    expect(screen.getByText("Claude Code · sess-1")).toBeInTheDocument();
   });
 
   it("uses a native Codex title instead of a bare Codex agent name", () => {
@@ -398,7 +398,7 @@ describe("AgentCard", () => {
   it("should call onClick when clicked", () => {
     const onClick = vi.fn();
     renderCard(<AgentCard agent={makeAgent()} onClick={onClick} />);
-    fireEvent.click(screen.getByText("Main Agent"));
+    fireEvent.click(screen.getByText("Claude Code · sess-1"));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
@@ -434,6 +434,28 @@ describe("AgentCard", () => {
     fireEvent.click(screen.getByText("Codex · codex-pr"));
     expect(screen.getByTestId("location")).toHaveTextContent("/kanban");
     expect(container.querySelector(".card-hover")?.className).toContain("cursor-default");
+  });
+
+  it("gives Cursor main cards a native title and an always-visible subtitle", () => {
+    renderCard(
+      <AgentCard
+        agent={makeAgent({ name: "Main Agent - Session 1bace4f0" })}
+        session={
+          {
+            id: "1bace4f0-506a-436b-badd-16209a514803",
+            name: "Ship the backend",
+            status: "active",
+            cwd: "/Users/example/project",
+            model: "grok-4.6",
+            provider: "cursor",
+            agent_count: 2,
+            metadata: JSON.stringify({ turn_count: 4 }),
+          } as Session
+        }
+      />
+    );
+    expect(screen.getByText("Cursor · Ship the backend")).toBeInTheDocument();
+    expect(screen.getByText("Cursor · project · 1 subagent · 4 turns")).toBeInTheDocument();
   });
 
   it("renders waiting badge and yellow accent when awaiting_input_since is set", () => {

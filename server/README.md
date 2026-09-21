@@ -44,11 +44,13 @@ Enterprise-grade Node.js backend for Claude Code agent monitoring with real-time
 
 The server is a lightweight Express application that:
 
-1. **Receives hook events** from Claude Code via HTTP POST (stdin → hook-handler.js → server)
+1. **Receives hook events** from Claude Code, compatible Cursor sessions, and Codex via HTTP POST
 2. **Persists data** in SQLite database with schema migrations
 3. **Broadcasts updates** to connected web clients via WebSocket
 4. **Serves REST API** for sessions, agents, events, stats, analytics, pricing, workflows, settings, and docs
-5. **Manages pricing rules** for cost calculation and attribution
+5. **Manages isolated Claude, Cursor, and Codex pricing rules** for cost calculation and attribution
+
+Cursor history is native rather than an alias for Claude storage. `lib/cursor-home.js` resolves `~/.cursor`, while `lib/cursor-ingest.js` discovers chat directories immediately from `meta.json`, applies `prompt_history.json` updates before a transcript exists, records deduplicated `cursor_user_message` activity for Timeline/last-active state, later joins agent transcripts, backfills existing rows, imports subagents, and copies durable transcript snapshots into the dashboard data directory. `index.js` watches both chat and project trees and broadcasts ordinary session/agent/event frames; `routes/sessions.js` merges pending prompts with Cursor's `role/message.content` JSONL by stable message id for the Conversation tab. `DASHBOARD_CURSOR_HOME` overrides the root; `DASHBOARD_CURSOR_SYNC_MS` controls only the periodic safety scan, not filesystem watching.
 
 ```mermaid
 graph TB
@@ -473,7 +475,7 @@ The OpenAPI spec is generated from `server/openapi.js` (`createOpenApiSpec()`), 
 
 **Prometheus metrics (`GET /api/metrics`).** Exposes the dashboard's live counters — `ccam_sessions`/`ccam_agents` by status, `ccam_events_total`, `ccam_tokens_total` by kind, `ccam_websocket_clients`, `ccam_remote_sources` by enabled state, `ccam_process_uptime_seconds`/`ccam_process_resident_memory_bytes`, and `ccam_build_info{version}` — in the Prometheus v0.0.4 text-exposition format for scraping into Prometheus / Grafana (`server/routes/metrics.js`). Values come from the same `server/db.js` prepared statements the REST API uses, so they match the UI; status series are enumerated so a gauge never drops out of the exposition at zero. The route is read-only and, being under `/api`, sits behind both the Host-header (DNS-rebinding) guard and the optional `DASHBOARD_TOKEN` guard: a non-loopback scraper (e.g. Prometheus in Docker via `host.docker.internal`) must be allowlisted with `DASHBOARD_ALLOWED_HOSTS` or it gets `403 EBADHOST`, and must send the token when one is set. A ready-to-run Prometheus + Grafana stack with four auto-provisioned dashboards (default home **CCAM — Overview**) lives in [`monitoring/`](../monitoring/README.md).
 
-**Data scope (`?sources=` and `?providers=`).** `GET /api/sessions`, `/api/events`, `/api/agents`, `/api/stats`, `/api/analytics`, `/api/workflows`, workflow drill-ins, and pricing cost endpoints accept an optional source list and a provider list (`claude`, `codex`, or both). The filters compose, so a single Settings choice immediately scopes every page by both machine and product. `server/lib/source-filter.js` and `server/lib/provider-filter.js` build the SQL predicates; `/api/stats` and `/api/analytics` use their scoped aggregates only when a filter is present. `GET /api/sessions/facets` returns both `sources` and `providers`.
+**Data scope (`?sources=` and `?providers=`).** `GET /api/sessions`, `/api/events`, `/api/agents`, `/api/stats`, `/api/analytics`, `/api/workflows`, workflow drill-ins, and pricing cost endpoints accept an optional source list and provider list (`claude`, `cursor`, `codex`, or a comma-separated combination). The `claude` product scope intentionally expands to Claude Code + Cursor; direct `cursor` requests remain available for stored-provider drill-ins. The filters compose, so a single Settings choice immediately scopes every page by both machine and product. `server/lib/source-filter.js` and `server/lib/provider-filter.js` build the SQL predicates; `/api/stats` and `/api/analytics` use their scoped aggregates only when a filter is present. `GET /api/sessions/facets` returns both `sources` and `providers`.
 
 **Session project filter (`cwd=`).** `GET /api/sessions` accepts one or more exact working directories. Repeat the query key (`?cwd=/work/a&cwd=/work/b`) to include sessions from any selected project; this OR filter composes with `status`, `q`, `sources`, pagination, and `sort_by` / `sort_desc`. The Sessions page uses it for its searchable checkbox project picker, so multi-project filtering stays server-paginated.
 
@@ -622,6 +624,9 @@ Response (`200`, even when individual items were skipped/rejected — see
 | `GET`    | `/api/pricing`            | List pricing rules                     |
 | `PUT`    | `/api/pricing`            | Create/update a pricing rule           |
 | `DELETE` | `/api/pricing/:pattern`   | Delete pricing rule                    |
+| `GET`    | `/api/pricing/cursor`     | List the separate Cursor rate card     |
+| `PUT`    | `/api/pricing/cursor`     | Create/update a Cursor rate row        |
+| `DELETE` | `/api/pricing/cursor/:pattern` | Delete a Cursor rate row          |
 | `GET`    | `/api/pricing/gpt`        | List the separate OpenAI GPT rate card |
 | `PUT`    | `/api/pricing/gpt`        | Create/update an OpenAI GPT rate row |
 | `DELETE` | `/api/pricing/gpt/:pattern` | Delete an OpenAI GPT rate row      |
@@ -643,7 +648,7 @@ Codex accounting keeps fresh input, cached input, cache writes, output, and reas
 
 Live remote/multi-machine data collection over SSH. `server/lib/remote-sync.js` independently mirrors a source's Claude Code tree (`~/.claude/projects`) and Codex tree (`~/.codex/sessions` plus the lightweight native `session_index.jsonl` title index) into isolated staging dirs. Each uses its normal local importer — `importFromDirectory` for Claude and `importCodexFromDirectory` for Codex — then tags imported sessions with `sessions.source`. A source can be Claude-only, Codex-only, or both; either provider can keep the source healthy while provider-specific state preserves correct lifecycle fallback. Authentication defers entirely to the host SSH stack (ssh-agent / `~/.ssh/config` / identity file) — **no secrets are stored**; every command runs via `execFile`/`spawn` argument arrays (never a shell string) and `StrictHostKeyChecking` is left at its SSH default.
 
-> **Cursor on remotes (informational):** The same note applies on synced machines — if Cursor on a remote host writes to `~/.claude`, those sessions are imported too. CCAM reads the paths, not the app name.
+> **Cursor on remotes:** SSH sources currently mirror Claude Code and Codex homes only. Cursor's native `~/.cursor` tree is not pulled by this subsystem; mount or otherwise expose that tree locally and point `DASHBOARD_CURSOR_HOME` at it when remote Cursor history is required.
 
 | Method   | Path                          | Description |
 | -------- | ----------------------------- | ----------- |
@@ -690,8 +695,8 @@ Because sync runs non-interactively (`ssh -o BatchMode=yes`), the connection mus
 | `POST` | `/api/settings/reimport`       | Re-import legacy sessions from `~/.claude/`      |
 | `POST` | `/api/settings/reinstall-hooks`| Reinstall Claude Code hooks                      |
 | `POST` | `/api/settings/install-hooks` | Install selected Claude Code and/or Codex hook sets; preserves unrelated hook entries |
-| `POST` | `/api/settings/reset-pricing`  | Reset Claude, Codex, or both pricing tables to defaults |
-| `GET`  | `/api/settings/export`         | Export all data (sessions, agents, events, token_usage, workflows, dashboard_runs, alert_rules, model_pricing, gpt_model_pricing) as one versioned JSON attachment |
+| `POST` | `/api/settings/reset-pricing`  | Reset Claude, Cursor, Codex, or all pricing tables to defaults |
+| `GET`  | `/api/settings/export`         | Export all data (sessions, agents, events, token_usage, workflows, dashboard_runs, alert_rules, model_pricing, cursor_model_pricing, gpt_model_pricing) as one versioned JSON attachment |
 | `POST` | `/api/settings/import`         | Restore one bundle up to 25 MiB from `/export`. Multipart `file`, or JSON `{ path }` (server reads it). Idempotent + non-destructive: sessions already present are skipped whole |
 | `POST` | `/api/settings/cleanup`        | Abandon stale sessions and purge old data        |
 | `GET` / `PUT` | `/api/settings/claude-home` | Read or update the Claude Code transcript/configuration root |
@@ -1363,7 +1368,7 @@ Live user actions and the transcript-tail check clear the error; unrelated backg
 
 ### Graceful Shutdown
 
-`SIGTERM` / `SIGINT` tear the server down in a fixed order so a restart is fast and clean. In development, `scripts/dev-server.js` watches runtime server/script sources, coalesces a burst of saves for 500 ms, and sends one SIGTERM before waiting for this shutdown sequence to finish. Its child inherits stdio directly, avoiding the built-in `node --watch` output proxy's fatal `EPIPE` during repeated restarts:
+`SIGTERM` / `SIGINT` tear the server down in a fixed order so a restart is fast and clean. In development, `scripts/dev-server.js` watches runtime server/script sources, coalesces a burst of saves for 500 ms, and sends one SIGTERM before waiting for this shutdown sequence to finish. Its child inherits stdio directly, avoiding the built-in `node --watch` output proxy's fatal `EPIPE` during repeated restarts. The WSL remote-history transport also owns error handlers on both sides of its `ssh.stdout → tar.stdin` pipe: if reload closes `tar` while SSH still has buffered archive bytes, that source sync reports a contained stream failure instead of an uncaught `write EPIPE` terminating the dashboard.
 
 1. **Drop realtime clients first** — `closeWebSocket()` (`server/websocket.js`) terminates every WebSocket client so their underlying TCP sockets release. Open WS sockets otherwise keep the HTTP server alive.
 2. **`httpServer.close()`** — stop accepting new connections and begin draining in-flight requests.
@@ -1535,7 +1540,7 @@ test("POST /api/hooks/event ingests hook payload", async () => {
 
 ## Terminal Access (`ccam` CLI)
 
-Everything this server exposes over JSON REST is reachable from the dependency-free `ccam` CLI (`bin/ccam.js`, linked by `npm run setup`). High-level commands cover monitoring, data browsing, workflows/cost, Run Agent, alerts/rules/webhooks, Claude and GPT pricing, provider-aware imports, remote sources, Claude/Codex config, hooks, backup restore, and administration. `ccam api <METHOD> /api/path` provides future-proof low-level coverage with `--yes` on writes and exact confirmation tokens for destructive actions. Multipart history upload is available through `ccam import upload`. It resolves the live server through the same `~/.claude/.agent-dashboard.json` registry as the hook handler and supports `DASHBOARD_API_TOKEN` / `CCAM_API_TOKEN` when the API is protected. See [docs/CLI.md](../docs/CLI.md).
+Everything this server exposes over JSON REST is reachable from the dependency-free `ccam` CLI (`bin/ccam.js`, linked by `npm run setup`). High-level commands cover monitoring, data browsing, workflows/cost, Run Agent, alerts/rules/webhooks, Claude, Cursor, and GPT pricing, provider-aware imports, remote sources, Claude/Codex config, hooks, backup restore, and administration. `ccam api <METHOD> /api/path` provides future-proof low-level coverage with `--yes` on writes and exact confirmation tokens for destructive actions. Multipart history upload is available through `ccam import upload`. It resolves the live server through the same `~/.claude/.agent-dashboard.json` registry as the hook handler and supports `DASHBOARD_API_TOKEN` / `CCAM_API_TOKEN` when the API is protected. See [docs/CLI.md](../docs/CLI.md).
 
 ## Deployment
 
@@ -1595,6 +1600,8 @@ DASHBOARD_DB_PATH=./data/dashboard.db  # SQLite database path
 
 # Background services
 DASHBOARD_SESSION_SYNC_MS=30000    # Continuous project-sync poll interval (ms); 0 disables the poll (watcher stays)
+DASHBOARD_CURSOR_HOME=             # Optional Cursor home; defaults to ~/.cursor for native history and chat metadata
+DASHBOARD_CURSOR_SYNC_MS=5000      # Cursor chat/transcript safety-net poll (ms); 0 keeps watchers but disables polling
 DASHBOARD_CODEX_HOME=              # Optional Codex home; Settings saves this dashboard-only override and immediately re-arms live watching
 DASHBOARD_CODEX_SYNC_MS=4000       # Codex rollout safety-net poll (ms); 0 disables poll (watcher stays)
 DASHBOARD_CODEX_MAX_ATTEMPTS=5     # Consecutive failed ingest attempts per unchanged rollout, including the first attempt

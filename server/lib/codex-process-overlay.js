@@ -64,6 +64,10 @@ const VALUE_FLAGS = new Set([
 
 let sessionsById = new Map();
 let matchedSessionIds = new Set();
+// Process/thread pairs already handed a resume hint by an earlier probe tick.
+// A replacement process may reopen the same durable session id and must create
+// a fresh edge, while an unchanged process must not restamp Waiting each tick.
+let resumeHintedProcessKeys = new Set();
 let monitorStarted = false;
 
 function commandTokens(args) {
@@ -439,17 +443,34 @@ async function refreshCodexProcessOverlay(options = {}) {
     }
   }
   const durableIds = new Set((durableSessions || []).map((session) => session.id));
+  const matchedProcesses = probe.processes.filter(
+    (processInfo) =>
+      Number.isInteger(processInfo?.pid) &&
+      typeof processInfo?.sessionId === "string" &&
+      durableIds.has(processInfo.sessionId)
+  );
+  const matchedNow = new Set(
+    matchedProcesses.map((processInfo) => `${processInfo.pid}:${processInfo.sessionId}`)
+  );
   const resumed = [];
-  for (const processInfo of probe.processes) {
-    if (!processInfo?.sessionId || !durableIds.has(processInfo.sessionId)) continue;
+  const resumedSessionIds = new Set();
+  for (const processInfo of matchedProcesses) {
+    const sessionId = processInfo.sessionId;
+    const processKey = `${processInfo.pid}:${sessionId}`;
+    // Edge-triggered: the hint describes the moment a process adopts a thread,
+    // not every probe tick for as long as that TUI stays open. Re-running it
+    // each second rewrote the session's awaiting marker continuously.
+    if (resumeHintedProcessKeys.has(processKey) || resumedSessionIds.has(sessionId)) continue;
+    resumedSessionIds.add(sessionId);
     try {
       const { resumeCodexSessionAtPrompt } = require("./codex-ingest");
-      const result = resumeCodexSessionAtPrompt(processInfo.sessionId);
+      const result = resumeCodexSessionAtPrompt(sessionId);
       if (result?.changed) resumed.push(result);
     } catch {
       // Lock hints are optional; rollout and hook ingestion remain authoritative.
     }
   }
+  resumeHintedProcessKeys = matchedNow;
   const changes = reconcileCodexProcessOverlay(probe.processes, durableSessions, options.now);
   return { ...changes, resumed };
 }
@@ -540,6 +561,7 @@ function startCodexProcessOverlay({ broadcast, intervalMs = 1_000 } = {}) {
 function resetCodexProcessOverlayForTests() {
   sessionsById = new Map();
   matchedSessionIds = new Set();
+  resumeHintedProcessKeys = new Set();
 }
 
 module.exports = {

@@ -11,6 +11,7 @@ const { describe, it, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const fs = require("fs");
+const { EventEmitter } = require("events");
 const os = require("os");
 const http = require("http");
 
@@ -165,6 +166,37 @@ describe("remote-sync validateSourceInput", () => {
 });
 
 describe("remote-sync command builders", () => {
+  it("contains EPIPE from an SSH-to-tar stream instead of crashing the server", () => {
+    class FakeStream extends EventEmitter {
+      pipe(destination) {
+        this.destination = destination;
+        return destination;
+      }
+
+      unpipe(destination) {
+        this.unpiped = destination;
+      }
+    }
+
+    const source = new FakeStream();
+    const destination = new FakeStream();
+    let captured = null;
+    const detach = remoteSync.pipeChildStreams(source, destination, (error) => {
+      captured = error;
+    });
+    const error = Object.assign(new Error("write EPIPE"), { code: "EPIPE" });
+
+    destination.emit("error", error);
+    // A second stream error is still observed (and swallowed) but must not
+    // trigger duplicate sync failures while both child processes are closing.
+    source.emit("error", Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+
+    assert.equal(captured, error);
+    assert.equal(source.destination, destination);
+    assert.equal(source.unpiped, destination);
+    detach();
+  });
+
   it("builds ssh option args with port + identity", async () => {
     const args = await remoteSync.sshOptionArgs({ ssh_port: 2222, identity_file: "/k" });
     assert.ok(args.includes("-p"));

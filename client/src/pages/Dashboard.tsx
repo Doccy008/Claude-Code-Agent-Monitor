@@ -99,6 +99,7 @@ import {
 import { api } from "../lib/api";
 import { eventBus } from "../lib/eventBus";
 import { isRemoteDataRefreshMessage } from "../lib/remoteDataEvents";
+import { mergeFreshestById } from "../lib/merge-by-id";
 import { useDataScope } from "../lib/dataScope";
 import { StatCard } from "../components/StatCard";
 import { AgentCard } from "../components/AgentCard";
@@ -1035,7 +1036,9 @@ export function Dashboard() {
         ]
       );
       setStats(statsRes);
-      const active = [...workingRes.agents, ...waitingRes.agents];
+      // The two lanes are fetched in parallel, so an agent that flips status
+      // between the responses lands in both. Merge to one card per agent id.
+      const active = mergeFreshestById(workingRes.agents, waitingRes.agents);
       setActiveAgents(active);
       setRecentEvents(eventsRes.events);
       setTotalCost(costRes.total_cost);

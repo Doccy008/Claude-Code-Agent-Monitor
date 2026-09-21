@@ -71,6 +71,7 @@ import { usePaletteAction } from "../components/PaletteActionProvider";
 import { useDataScope } from "../lib/dataScope";
 import { eventBus } from "../lib/eventBus";
 import { isRemoteDataRefreshMessage } from "../lib/remoteDataEvents";
+import { mergeFreshestById } from "../lib/merge-by-id";
 import { AgentCard } from "../components/AgentCard";
 import { SessionCard } from "../components/SessionCard";
 import { EmptyState } from "../components/EmptyState";
@@ -146,7 +147,10 @@ export function KanbanBoard() {
       ),
       api.sessions.list({ limit: 10000, include_transient: true }),
     ]);
-    setAgents(agentResults.flatMap((r) => r.agents));
+    // One request per status runs in parallel, so an agent whose status changes
+    // mid-flight returns in two of them. Merge to one card per agent id, keeping
+    // the freshest row so it lands in a single lane.
+    setAgents(mergeFreshestById(...agentResults.map((r) => r.agents)));
     setSessions(sessionsRes.sessions);
   }, [dataScope]);
 
@@ -168,7 +172,8 @@ export function KanbanBoard() {
         })
       )
     );
-    setSessions(results.flatMap((r) => r.sessions));
+    // Same parallel-status race as the agent lanes above.
+    setSessions(mergeFreshestById(...results.map((r) => r.sessions)));
   }, [dataScope]);
 
   const load = useCallback(async () => {

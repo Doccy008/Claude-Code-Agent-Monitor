@@ -2,8 +2,8 @@
  * @file Express router for session endpoints, allowing creation, retrieval, and
  * updating of sessions with pagination plus status, search, and multi-directory
  * filtering. It computes costs, derives optional owner-aware task progress,
- * adds card-ready prompt context, safely exposes transcript images, and
- * broadcasts live changes.
+ * adds card-ready prompt context, reads Claude/Cursor/Codex conversations,
+ * safely exposes transcript images, and broadcasts live changes.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -28,6 +28,15 @@ const {
   findTranscriptPath,
   findSubagentTranscriptPath,
 } = require("../lib/claude-home");
+const {
+  getCursorSnapshotDir,
+  getCursorSnapshotPath,
+  getCursorSnapshotSubagentPath,
+  getCursorSubagentPath,
+  findCursorChatDir,
+  isSafeCursorId,
+  readCursorChatMetadata,
+} = require("../lib/cursor-home");
 
 const router = Router();
 const MAX_TASK_PROGRESS_ROWS = 100;
@@ -301,6 +310,7 @@ router.get("/", (req, res) => {
     if (allRows.length > 0) {
       const rules = stmts.listPricing.all();
       const gptRules = stmts.listGptPricing.all();
+      const cursorRules = stmts.listCursorPricing.all();
 
       for (let i = 0; i < allRows.length; i += 900) {
         const chunk = allRows.slice(i, i + 900);
@@ -334,7 +344,8 @@ router.get("/", (req, res) => {
         for (const row of chunk) {
           const sessionTokens = tokensBySession[row.id];
           row.cost = sessionTokens
-            ? calculateProviderCost(sessionTokens, rules, gptRules, row.started_at).total_cost
+            ? calculateProviderCost(sessionTokens, rules, gptRules, cursorRules, row.started_at)
+                .total_cost
             : 0;
           row.has_token_usage = Boolean(sessionTokens);
         }
@@ -383,6 +394,7 @@ router.get("/", (req, res) => {
 
       const rules = stmts.listPricing.all();
       const gptRules = stmts.listGptPricing.all();
+      const cursorRules = stmts.listCursorPricing.all();
       const providerBySession = new Map(rows.map((session) => [session.id, session.provider]));
       const tokensBySession = {};
       for (const t of allTokens) {
@@ -396,7 +408,8 @@ router.get("/", (req, res) => {
       for (const row of rows) {
         const sessionTokens = tokensBySession[row.id];
         row.cost = sessionTokens
-          ? calculateProviderCost(sessionTokens, rules, gptRules, row.started_at).total_cost
+          ? calculateProviderCost(sessionTokens, rules, gptRules, cursorRules, row.started_at)
+              .total_cost
           : 0;
         row.has_token_usage = Boolean(sessionTokens);
       }
@@ -623,26 +636,56 @@ router.get("/:id/transcripts", async (req, res) => {
     return res.status(404).json({ error: { code: "NOT_FOUND", message: "Session not found" } });
   }
 
-  // Codex uses a single append-only rollout rather than Claude Code's
-  // projects/<cwd>/<session>/subagents layout. Surface it through the same
-  // transcript contract so the Conversation tab stays provider-agnostic.
-  if (session.provider === "codex") {
+  // Codex uses a single append-only rollout. Cursor uses a main JSONL plus an
+  // optional sibling subagents directory. Surface both through the same
+  // provider-agnostic transcript contract as Claude Code.
+  if (session.provider === "codex" || session.provider === "cursor") {
     const mainAgent = stmts.listAgentsBySession
       .all(session.id)
       .find((agent) => agent.type === "main");
-    return res.json({
-      transcripts:
+    const mainPath = resolveSessionTranscriptPath(session, session.id, "main", null);
+    const hasCursorChat = session.provider === "cursor" && !!findCursorChatDir(session.id);
+    const transcripts =
+      mainPath || hasCursorChat
+        ? [
+            {
+              id: "main",
+              name: session.provider === "cursor" ? "Cursor" : "Codex",
+              type: "main",
+              has_transcript: true,
+              db_agent_id: mainAgent?.id || null,
+            },
+          ]
+        : [];
+    if (session.provider === "cursor") {
+      const liveMain =
         session.transcript_path && fs.existsSync(session.transcript_path)
-          ? [
-              {
-                id: "main",
-                name: "Codex",
-                type: "main",
-                has_transcript: true,
-                db_agent_id: mainAgent?.id || null,
-              },
-            ]
-          : [],
+          ? session.transcript_path
+          : null;
+      const subagentDir = liveMain
+        ? path.join(path.dirname(liveMain), "subagents")
+        : path.join(getCursorSnapshotDir(), session.id, "subagents");
+      let files = [];
+      try {
+        files = fs.readdirSync(subagentDir).filter((file) => file.endsWith(".jsonl"));
+      } catch {
+        // Cursor sessions do not always spawn subagents.
+      }
+      const agents = stmts.listAgentsBySession.all(session.id);
+      for (const file of files) {
+        const id = path.basename(file, ".jsonl");
+        transcripts.push({
+          id,
+          name: `Cursor subagent ${id.slice(0, 8)}`,
+          type: "subagent",
+          subagent_type: "cursor",
+          has_transcript: true,
+          db_agent_id: agents.find((agent) => agent.id.endsWith(`-cursor-${id}`))?.id || null,
+        });
+      }
+    }
+    return res.json({
+      transcripts,
     });
   }
 
@@ -903,6 +946,20 @@ function resolveSessionTranscriptPath(session, sessionId, agentId, runId) {
       ? session.transcript_path
       : null;
   }
+  if (session.provider === "cursor") {
+    const liveMain =
+      session.transcript_path && fs.existsSync(session.transcript_path)
+        ? session.transcript_path
+        : null;
+    if (agentId && agentId !== "main") {
+      if (!isSafeCursorId(agentId)) return null;
+      return (
+        getCursorSubagentPath(liveMain, agentId) ||
+        getCursorSnapshotSubagentPath(sessionId, agentId)
+      );
+    }
+    return liveMain || getCursorSnapshotPath(sessionId);
+  }
   if (agentId && agentId !== "main") {
     return (
       getSubagentTranscriptPath(sessionId, session.cwd, agentId, runId) ||
@@ -1148,6 +1205,213 @@ async function readCodexTranscript(jsonlPath, { limit, afterLine, beforeLine, of
   return { messages, total, has_more: hasMore, first_line: firstLine, last_line: lastLine };
 }
 
+/** Translate Cursor's Claude-compatible-but-minimal JSONL into conversation DTOs. */
+function parseCursorMessage(entry, line, isSubagentFile) {
+  if (entry?.role !== "user" && entry?.role !== "assistant") return null;
+  const rawContent = entry?.message?.content;
+  if (!Array.isArray(rawContent)) return null;
+  const content = [];
+  let embeddedTimestamp = null;
+  for (const block of rawContent) {
+    if (block?.type === "text" && typeof block.text === "string" && block.text.trim()) {
+      let text = block.text;
+      const timestampMatch = text.match(/<timestamp>([\s\S]*?)<\/timestamp>/i);
+      if (timestampMatch) {
+        const normalized = timestampMatch[1].replace(
+          /\(UTC([+-]\d{1,2})\)/i,
+          (_match, offset) =>
+            `GMT${Number(offset) >= 0 ? "+" : "-"}${String(Math.abs(Number(offset))).padStart(2, "0")}00`
+        );
+        const parsed = new Date(normalized);
+        if (!Number.isNaN(parsed.getTime())) embeddedTimestamp = parsed.toISOString();
+        text = text.replace(timestampMatch[0], "").trim();
+      }
+      const userQuery = text.match(/<user_query>([\s\S]*?)<\/user_query>/i);
+      if (userQuery) text = userQuery[1].trim();
+      if (text) content.push({ type: "text", text: truncate(text, 10240) });
+    } else if (entry.role === "assistant" && block?.type === "tool_use") {
+      content.push({
+        type: "tool_use",
+        name: block.name || "unknown",
+        id: block.id || null,
+        input: truncateObj(block.input || {}, 10240),
+      });
+    }
+  }
+  if (content.length === 0) return null;
+  return {
+    type: entry.role,
+    sender: entry.role === "assistant" ? "assistant" : isSubagentFile ? "orchestrator" : "user",
+    timestamp: entry.timestamp || embeddedTimestamp,
+    content,
+    line,
+  };
+}
+
+async function readCursorTranscript(
+  jsonlPath,
+  { limit, afterLine, beforeLine, offset, isSubagentFile }
+) {
+  const messages = [];
+  let lineNum = 0;
+  let total = 0;
+  let hasMore = false;
+  const rl = readline.createInterface({
+    input: fs.createReadStream(jsonlPath, { encoding: "utf8" }),
+    crlfDelay: Infinity,
+  });
+  for await (const line of rl) {
+    lineNum++;
+    if (!line.trim()) continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const message = parseCursorMessage(entry, lineNum, isSubagentFile);
+    if (!message) continue;
+    if (beforeLine !== null && lineNum >= beforeLine) break;
+    total++;
+    if (afterLine !== null && lineNum <= afterLine) continue;
+    if (offset > 0 && total <= offset) continue;
+    messages.push(message);
+    if (afterLine !== null || offset > 0) {
+      if (messages.length >= limit) {
+        hasMore = true;
+        break;
+      }
+    } else if (messages.length > limit) {
+      messages.shift();
+      hasMore = true;
+    }
+  }
+  const firstLine = messages[0]?.line || 0;
+  const lastLine = messages[messages.length - 1]?.line || 0;
+  messages.forEach((message) => delete message.line);
+  return { messages, total, has_more: hasMore, first_line: firstLine, last_line: lastLine };
+}
+
+function cursorMessageText(message) {
+  return (message?.content || [])
+    .filter((block) => block?.type === "text" && typeof block.text === "string")
+    .map((block) => block.text.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * Merge Cursor's immediate prompt history with its later canonical transcript.
+ * Prompt ids remain stable when the matching JSONL user row arrives, letting
+ * clients refresh in place without showing the submitted prompt twice.
+ */
+async function readCursorConversation(
+  sessionId,
+  jsonlPath,
+  { limit, afterLine, beforeLine, offset, isSubagentFile }
+) {
+  if (isSubagentFile) {
+    if (!jsonlPath) {
+      return { messages: [], total: 0, has_more: false, first_line: 0, last_line: 0 };
+    }
+    return readCursorTranscript(jsonlPath, {
+      limit,
+      afterLine,
+      beforeLine,
+      offset,
+      isSubagentFile: true,
+    });
+  }
+
+  const messages = [];
+  if (jsonlPath) {
+    let rawLine = 0;
+    const rl = readline.createInterface({
+      input: fs.createReadStream(jsonlPath, { encoding: "utf8" }),
+      crlfDelay: Infinity,
+    });
+    for await (const line of rl) {
+      rawLine++;
+      if (!line.trim()) continue;
+      let entry;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const message = parseCursorMessage(entry, rawLine, false);
+      if (!message) continue;
+      message.id = `cursor-jsonl:${rawLine}`;
+      messages.push(message);
+    }
+  }
+
+  const { meta, prompts } = readCursorChatMetadata(sessionId);
+  const claimedPromptIndexes = new Set();
+  for (const message of messages) {
+    if (message.sender !== "user") continue;
+    const text = cursorMessageText(message);
+    const promptIndex = prompts.findIndex(
+      (prompt, index) =>
+        !claimedPromptIndexes.has(index) && prompt.replace(/\s+/g, " ").trim() === text
+    );
+    if (promptIndex < 0) continue;
+    claimedPromptIndexes.add(promptIndex);
+    message.id = `cursor-prompt:${promptIndex}`;
+  }
+
+  prompts.forEach((prompt, index) => {
+    if (claimedPromptIndexes.has(index)) return;
+    messages.push({
+      id: `cursor-prompt:${index}`,
+      type: "user",
+      sender: "user",
+      timestamp:
+        index === prompts.length - 1 && Number.isFinite(Number(meta?.updatedAtMs))
+          ? new Date(Number(meta.updatedAtMs)).toISOString()
+          : null,
+      content: [{ type: "text", text: truncate(prompt, 10240) }],
+    });
+  });
+
+  messages.forEach((message, index) => {
+    message.line = index + 1;
+  });
+  const total = messages.length;
+  let page;
+  let hasMore = false;
+  let refresh = false;
+  if (afterLine !== null) {
+    // Cursor can persist prompt history before it emits transcript rows, which
+    // makes a raw line cursor unstable during hand-off. Return the latest
+    // window with stable message ids and let the client merge it in place.
+    page = messages.slice(-limit);
+    hasMore = messages.length > page.length;
+    refresh = true;
+  } else if (beforeLine !== null) {
+    const older = messages.filter((message) => message.line < beforeLine);
+    page = older.slice(-limit);
+    hasMore = older.length > page.length;
+  } else if (offset > 0) {
+    page = messages.slice(offset, offset + limit);
+    hasMore = offset + page.length < messages.length;
+  } else {
+    page = messages.slice(-limit);
+    hasMore = messages.length > page.length;
+  }
+  const firstLine = page[0]?.line || 0;
+  const lastLine = page[page.length - 1]?.line || 0;
+  page.forEach((message) => delete message.line);
+  return {
+    messages: page,
+    total,
+    has_more: hasMore,
+    first_line: firstLine,
+    last_line: lastLine,
+    ...(refresh ? { refresh: true } : {}),
+  };
+}
+
 router.get("/:id/transcript", async (req, res) => {
   const session = stmts.getSession.get(req.params.id);
   if (!session) {
@@ -1175,6 +1439,23 @@ router.get("/:id/transcript", async (req, res) => {
     try {
       return res.json(
         await readCodexTranscript(jsonlPath, { limit, afterLine, beforeLine, offset })
+      );
+    } catch {
+      return res.json({ messages: [], total: 0, has_more: false, last_line: 0, first_line: 0 });
+    }
+  }
+
+  if (session.provider === "cursor") {
+    const jsonlPath = resolveSessionTranscriptPath(session, req.params.id, agentId, runId);
+    try {
+      return res.json(
+        await readCursorConversation(req.params.id, jsonlPath, {
+          limit,
+          afterLine,
+          beforeLine,
+          offset,
+          isSubagentFile,
+        })
       );
     } catch {
       return res.json({ messages: [], total: 0, has_more: false, last_line: 0, first_line: 0 });

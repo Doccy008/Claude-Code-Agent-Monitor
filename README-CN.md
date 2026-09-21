@@ -1,10 +1,11 @@
-# Claude Code & Codex Agent Dashboard（Agent 监控面板）
+# Claude Code、Cursor 与 Codex Agent Dashboard（Agent 监控面板）
 
-### Claude Code & Codex Agent 活动实时监控平台 🚀
+### Claude Code、Cursor 与 Codex Agent 活动实时监控平台 🚀
 
-专业的 Dashboard，用于实时追踪和可视化你的 Claude Code & Codex Agent 会话、工具使用和子 Agent 编排。基于 Node.js、Express、React 和 SQLite 构建，通过 Claude Code & Codex 原生 Hook 系统直接集成，实现无缝的会话追踪和分析。
+专业的 Dashboard，用于实时追踪和可视化 Claude Code、Cursor 与 Codex Agent 会话、工具使用、对话历史、成本和子 Agent 编排。基于 Node.js、Express、React 和 SQLite，结合原生 Hook 与按提供方识别的本地 transcript 发现。
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-orange?style=flat-square&logo=claude&logoColor=white)
+![Cursor](https://img.shields.io/badge/Cursor-Agent_Monitoring-111827?style=flat-square&logo=cursor&logoColor=white)
 ![OpenAI Codex](https://img.shields.io/badge/OpenAI_Codex-blue?style=flat-square&logo=githubcopilot&logoColor=white)
 ![Claude Code Plugins](https://img.shields.io/badge/Claude_Code_&_Codex-Plugins_&_Skills-orange?style=flat-square&logo=anthropic&logoColor=white)
 ![Model Context Protocol](https://img.shields.io/badge/Model_Context_Protocol-1.0-0f766e?style=flat-square&logo=modelcontextprotocol&logoColor=white)
@@ -113,11 +114,12 @@
 
 ## 概述
 
-通过专业的暗色主题 Web 界面追踪会话、实时监控 Agent、可视化工具使用、观察子 Agent 编排。通过 Claude Code & Codex 原生 Hook 系统直接集成。
+通过专业的暗色主题 Web 界面追踪会话、实时监控 Agent、可视化工具使用、回放对话并观察子 Agent 编排。Claude Code 和 Codex 使用原生 Hook；Cursor 则通过兼容的实时事件和原生 `~/.cursor` Transcript 发现开箱即用。
 
 ```mermaid
 graph LR
-    A["Claude Code & Codex<br/>会话"] -->|Hook 触发<br/>工具使用 / 停止| B["Hook Handler<br/>(Node.js 脚本)"]
+    A["Claude Code / Cursor<br/>会话"] -->|Hook + 本地<br/>Transcript 发现| B["Hook Handler + Cursor 同步<br/>(Node.js)"]
+    X["Codex<br/>会话"] -->|Hook + Rollout JSONL| B
     B -->|HTTP POST| C["Dashboard 服务器<br/>(Express + SQLite)"]
     C -->|WebSocket<br/>广播| D["Dashboard UI<br/>(React + Tailwind)"]
     style A fill:#6366f1,stroke:#818cf8,color:#fff
@@ -125,6 +127,12 @@ graph LR
     style C fill:#1a1a28,stroke:#2a2a3d,color:#e4e4ed
     style D fill:#10b981,stroke:#34d399,color:#fff
 ```
+
+### Cursor 支持
+
+Cursor 无需单独设置：启动页选择 **Claude Code** 时会开箱即用地启用 Cursor 监控。文件系统监听器会在 `agent` 启动时立即发现 `~/.cursor/chats/*/<session>/meta.json`，无需等待 Transcript；提交 Prompt 后，`prompt_history.json` 的变化会立即更新会话卡片、工作状态与 Conversation。随后 `~/.cursor/projects/*/agent-transcripts` 出现时，Dashboard 会无重复地合并待处理的用户消息，补充原生标题、项目、轮次与子 Agent，并保存主会话及子 Agent JSONL 快照。
+
+Cursor 卡片显示 `Cursor · <标题>` 以及项目、轮次和子 Agent 副标题。设置页提供独立可编辑的 **Cursor 定价**，覆盖 Cursor Grok、Composer 与已公布的第三方模型，不会误用 Claude 或 Codex 费率。可用 `DASHBOARD_CURSOR_HOME` 覆盖来源目录，并用 `DASHBOARD_CURSOR_SYNC_MS` 调整轮询兜底；设为 `0` 只会禁用周期扫描，实时文件系统监听仍保持启用。
 
 ### 多语言支持（i18n）
 
@@ -307,7 +315,7 @@ flowchart LR
 
 Dashboard 提供全面的功能来监控和分析你的 Claude Code 会话和 Agent：
 
-> **Cursor 会话（仅供参考）：** CCAM 会导入落在 `~/.claude` 下的所有 Agent 转录——本机以及已同步的远程机器。**Cursor** 的用量同样计入：Cursor 恰好与 Claude Code 使用相同的路径存放 Agent 会话。CCAM 不会区分是哪个应用写入了文件。
+> **内置 Cursor 支持：** CCAM 会从 `~/.cursor/projects/*/agent-transcripts` 发现 Cursor 原生历史，使用 `~/.cursor/chats` 元数据补全信息，以独立的 `cursor` 提供商保存，并在 Cursor 清理文件前创建会话快照。选择 Claude Code 仪表板范围时会自动包含 Cursor。目前远程 SSH 数据源只镜像 Claude Code 和 Codex 主目录；若要导入远程 Cursor，请将其主目录挂载或暴露到本机，并通过 `DASHBOARD_CURSOR_HOME` 指定。
 
 | 功能 | 描述 |
 |------|------|
@@ -321,7 +329,7 @@ Dashboard 提供全面的功能来监控和分析你的 Claude Code 会话和 Ag
 | **命令面板**              | 覆盖**整个**仪表盘的全局 `Cmd/Ctrl+K` 启动器。一次查询解析九个分组：最近运行的命令、当前页面自身的操作、每一个已知的项目目录、九个侧边栏路由（按**已翻译**的标签匹配，因此在所有语言下均可用）、通过 `/api/sessions?q=` 的实时服务端会话搜索（带防抖、遵循数据范围，因此不会在客户端保留数千条会话的陈旧索引）、每个页面子视图与列表筛选、全部 13 个设置分区、全部 12 个 Agent 配置标签页，以及用于偏好、数据范围、语言、历史记录和页面操作的动作。排序采用子序列匹配并高亮命中字符，因此 `mcp` 能找到 “MCP servers”，`kbrd` 能找到 “Kanban Board”；开头的 `>` / `@` / `#` 可缩小到动作 / 页面 / 会话。完全键盘驱动 —— 方向键、`Home`/`End`、`PageUp`/`PageDown`、`Tab` 切换分组、`Enter`、`Escape` —— 且在会话查询失败时仍可正常使用。由于面板没有常驻按钮，其可发现性由会自行退场的提示承担：首次运行时启动页会说明该组合键，会话页与 Agent 配置页的搜索框中会显示 `⌘K` 标记；一旦你打开过一次命令面板，两者都会永久消失。出现的命令就是可用的命令：页面操作读取自实时的处理器注册表，因此绝不会在无效之处列出，而任何在不移动页面的情况下改变状态的操作都会通过提示条自我确认。破坏性操作被刻意排除：面板只跳转到它们，绝不代为执行 |
 | **唯一的快捷键**             | `Cmd/Ctrl+K` 是仪表盘占用的唯一组合键，即使焦点在输入框中也依然生效。早期版本曾提供完整的快捷键层 —— 以 `g` 开头的导航序列、页面按键、`?` 速查表、按住修饰键的提示层 —— 但已被刻意移除：按键序列是带计时器的隐藏模式，按下 `g` 看起来什么都没发生；而在命令面板已经能用模糊搜索到达每个页面的前提下，两套导航机制只会分散肌肉记忆。Tabby 保留其一直以来的 `Cmd/Ctrl+B` |
 | **实时更新** | WebSocket 推送 — 无轮询，即时 UI 更新 |
-| **自动发现** | 会话和 Agent 会根据提供方信号自动创建。Claude Code 会在 `SessionStart` 立即创建一张**等待中**卡片。Codex 的交互式 TUI 进程一启动，就先显示一张仅存在于本机内存中的**等待中**卡片，即使此时 Codex 还没有分配稳定的会话 ID。随后 Hook、live-thread 行或 rollout 会创建持久会话并替换这张临时卡片。如果用户在 Codex 的 Resume 选择器中选择已有线程，CCAM 会读取该 Codex PID 已打开的 rollout 或 writer lock，并在首条新消息发送前立即切换到持久的已恢复会话。预身份卡片不会写入 SQLite、历史、分析、定价、工作流、告警或完成通知，并会在进程退出时消失。 |
+| **自动发现** | 会话和 Agent 会根据提供方信号自动创建。Claude Code 会在 `SessionStart` 立即创建一张**等待中**卡片。Codex 的交互式 TUI 进程一启动，就先显示一张仅存在于本机内存中的**等待中**卡片，即使此时 Codex 还没有分配稳定的会话 ID。随后 Hook、live-thread 行或 rollout 会创建持久会话并替换这张临时卡片。如果用户在 Codex 的 Resume 选择器中选择已有线程，CCAM 会读取该 Codex PID 已打开的 rollout 或 writer lock，并在首条新消息发送前立即切换到持久的已恢复会话。该接管只会采用持久记录已显示为已结束的线程，且每个进程只执行一次，因此 Codex 仍在推进的回合会保留其 rollout 自身报告的工作状态和等待原因。预身份卡片不会写入 SQLite、历史、分析、定价、工作流、告警或完成通知，并会在进程退出时消失。 |
 | **历史导入** | 面向提供方的 Import History 可从 `~/.claude/` 导入 Claude Code 转录记录，并从 `~/.codex/sessions` 导入 Codex rollout JSONL。每个标签都有自己的默认路径、说明、文件夹扫描和上传流程；两者都复用实时摄取逻辑，保留正确的 Token/成本/工具统计并保持幂等。外部 Codex rollout 会快照到仪表板存储，因此归档或源文件夹删除后仍可查看会话。 |
 | **子 Agent 层级** | Dashboard 和会话详情页可折叠的父子 Agent 树。有子 Agent 的 Agent 显示展开/折叠箭头；叶子 Agent 显示圆点指示器。子 Agent 活跃时自动展开 |
 | **后台 Agent** | 正确追踪后台子 Agent，不会提前标记为完成 |
@@ -332,7 +340,7 @@ Dashboard 提供全面的功能来监控和分析你的 Claude Code 会话和 Ag
 | **更新提醒** | 服务端定期以非阻塞方式执行 `git fetch`，将本地检出与所选规范远程的默认分支对比。**支持分支与 fork：** 若同时存在 `upstream` 和 `origin`，优先使用 `upstream`（fork 的常规约定）；命令也会根据用户处境调整——只有在本地分支真正跟踪规范引用时才建议 `git pull --ff-only`，否则给出 `git fetch`（fork 场景下加上 fast-forward 合并），让命令永不撒谎。侧边栏还有常驻的"检查更新"按钮及状态徽标。Dashboard **不会**自行拉取或重启——用户在终端中手动执行命令——因此该机制不会破坏开发会话、pm2/systemd/Docker 进程管理，也不会留下孤立进程 |
 | **设置** | 系统信息、Hook 状态、模型定价管理、通知偏好、数据导出**与恢复**（Import History 面板的 **Restore backup** 模式接受一个不超过 25 MiB 的导出 `.json`，并以幂等、非覆盖方式重新导入，因此可将多台机器的历史合并到一个仪表盘）、会话清理。Model Pricing 将 **Anthropic Claude Model Pricing** 与 **OpenAI GPT Model Pricing** 分开显示，两者使用相同的标题布局，提供按提供方生效的 **Reset Defaults** 和 **Add Model** 控件。标题旁的信息浮层说明首条匹配规则、SQL 风格 `%` 通配符、手动价格更新与 API 费率注意事项；GPT 浮层还说明每百万 Token 的美元单位、标准和 Fast 费率共同采用的 272K Short/Long 分界，以及未公布的费率为何保持未定价而不是被估算。**Dashboard Data** 控件会立即重新获取 Claude Code、Codex 或两者的会话、Agent、事件、Token、工作流、分析和成本。独立的 Claude Code 和 Codex 主目录输入框完整支持 i18n，并可在运行时保存；保存 Codex 主目录后会重新启用实时 rollout 监控并扫描新目录树。 |
 | **Codex Agent 配置** | Agent Config 的 Codex 一侧会读取完整的本地账户模型目录，不受通用预览限制影响，因此 Models 标签不会错误显示为 0，并始终包含基础/配置文件覆盖。可直接在应用中创建标准 Codex `<name>.config.toml` 覆盖层；每张卡均可一键复制其准确的 `codex --profile <name>` 命令并打开受保护的编辑器。预览路径会先规范化再做包含检查。编辑器拒绝受信任根目录下的符号链接路径组件，验证规范化父目录仍位于允许范围内，并拒绝保存含 `[redacted]` 的预览内容。配置文件、Hook、规则、技能和指令共用 Claude 风格的 **View source / Copy path / Edit / Delete** 操作。每次允许的删除都需确认并先创建备份（技能保留完整目录）；`config.toml` 永远只能编辑。 |
-| **MCP 服务器（本地）** | 位于 `mcp/` 的完整本地 MCP 服务器，支持三种传输模式，16 个领域模块共 97 个类型化工具。覆盖应用支持的全部操作：带作用域的数据读取、Transcript 与图片、Claude/GPT 定价、工作流、告警、Webhook、导入与恢复、Claude/Codex 配置、Run Agent、远程数据源、Hook/Home/更新、推送与维护。所有传输共享同一套已验证目录，并支持分层变更/破坏性门控。直接回环 HTTP 可携带 Bearer Token，带 Token 的容器主机别名必须使用 HTTPS。请求拒绝重定向；历史上传限制为单文件 50 MiB、每次调用合计 100 MiB，二进制响应限制为 10 MiB，备份恢复限制为 25 MiB |
+| **MCP 服务器（本地）** | 位于 `mcp/` 的完整本地 MCP 服务器，支持三种传输模式，16 个领域模块共 97 个类型化工具。覆盖应用支持的全部操作：带作用域的数据读取、Transcript 与图片、Claude/Cursor/GPT 定价、工作流、告警、Webhook、导入与恢复、Claude/Codex 配置、Run Agent、远程数据源、Hook/Home/更新、推送与维护。所有传输共享同一套已验证目录，并支持分层变更/破坏性门控。直接回环 HTTP 可携带 Bearer Token，带 Token 的容器主机别名必须使用 HTTPS。请求拒绝重定向；历史上传限制为单文件 50 MiB、每次调用合计 100 MiB，二进制响应限制为 10 MiB，备份恢复限制为 25 MiB |
 | **工作流** | 基于 D3.js 的可视化页面，包含 11 个交互式模块：Agent 编排 DAG、工具执行 Sankey 图、协作网络、子 Agent 有效性（按周 sparkline 通过 portal 渲染——可越过卡片的 `overflow:hidden`，并自动夹在视口内不再被裁切）、检测到的流程模式、模型委派流、错误传播图（带比率徽章的水平条形图、Agent 类型分解、API/会话错误卡片）、并发时间线、会话复杂度散点图、压缩影响分析和按会话下钻。**全方位、多语言的丰富 tooltip：** 每个图表标题旁都有一个 `i` 图标，可弹出结构化的「此图展示了什么 / 如何阅读 / 为何重要」浮层；悬停节点、边、条、气泡都会显示带有确定性、值相关解读的多段 tooltip（例如占源/占目标比例、成功率健康分级、Opus / Sonnet / Haiku 模型系列说明，以及前段/中段/后段等时间模式）。六张总览统计卡片各自在右下角带一个信息浮层，用自然语言解释指标的计算方式与当前数值含义。Tooltip 通过每张图唯一的 DOM ref 直接更新，并附带容器级 `mouseleave` 兜底，绝不会落后于光标或在重新渲染后残留。点击 **检测到的工作流模式** 中的任意一行会就地展开详情面板，包含完整步骤序列、统计网格、确定性叙述（循环检测、频率分级）和一条务实的建议。状态筛选标签（仅活跃 / 已完成 / 全部）可筛选全部 11 个模块。支持交叉筛选、JSON 导出和 3 秒防抖的实时 WebSocket 自动刷新。**工作流运行**面板呈现「动态工作流」——由 `Workflow` 工具（及自定节奏的 `/loop`）派生的 sub-agent 群组——它们不触发任何 hook，因此改为依据磁盘上的运行日志（`workflows/wf_<runId>.json`）重建：每次运行展示其阶段以及按 Agent 的 token / 工具调用 / 时长分解，并在日志写入前实时检测 `running` 状态，同时在每个会话详情页提供一个关联子区块 |
 | **压缩追踪** | 从 JSONL Transcript 检测 `/compact` 事件,创建压缩 Agent 和事件。启动时回填历史压缩。周期性扫描器(频率从 `DASHBOARD_STALE_MINUTES` 派生)在无 Hook 触发时也能捕获压缩。共享 Transcript 缓存,避免重复文件读取 |
 | **子会话/恢复会话** | 新事件到达时自动重新激活会话,正确处理 `/resume` 和孤立会话。周期性清理(每 ¼ 个 `DASHBOARD_STALE_MINUTES`,夹在 60 秒–5 分钟之间)标记遗漏事件检测的废弃会话 |
@@ -356,7 +364,7 @@ Dashboard 提供全面的功能来监控和分析你的 Claude Code 会话和 Ag
 | **自托管资源（无 CDN）**           | 所有字体与脚本均**本地托管,零第三方 CDN 请求**。React 应用通过 `@fontsource` 打包 Inter + JetBrains Mono(latin 子集;由 Vite 输出为带内容哈希的 WOFF2 至 `dist/assets/`)。着陆页与维基加载本地的 `fonts/fonts.css` `@font-face` 样式表(维基用 `../fonts/`)。维基的 Mermaid 改为本地内置(`wiki/mermaid.min.js`,`mermaid@10.9.6`)而非 jsDelivr。VS Code 扩展的错误页改用系统字体栈。移除了所有 `fonts.googleapis.com` / `gstatic` / CDN 调用,因此仪表盘与文档可**完全离线**渲染,不向第三方泄露任何信息 |
 | **桌面应用（macOS 与 Windows）**   | 用 Electron 35 构建的可选原生桌面应用，位于 `desktop/` 工作区，与 `client/`、`server/`、`mcp/`、`vscode-extension/` 平级。以 macOS `.app`（`.dmg`）**以及** Windows `.exe`（NSIS 安装包 + 免安装便携版）形式分发。它将现有的 Express 服务器**以进程内方式嵌入**（直接 `require()` `server/index.js` —— 没有子进程、没有 IPC），并在 `BrowserWindow` 中渲染已构建的 React 客户端。新增了原生标题栏、菜单栏 / 通知区域（托盘）图标（单击其下拉菜单会显示一份在点击时从 SQLite 实时拉取的**状态快照**：会话、Agent、今日事件）、原生应用菜单、开机自启（macOS 通过 `SMAppService` 登录项；Windows 通过按用户的 `HKCU\…\Run`）、一个 **⌘Q / Ctrl+Q 确认对话框**（再按一次即跳过）、关闭窗口只隐藏但服务器继续运行、单实例锁，以及 **在浏览器中打开**、**重启服务器**、**查看日志** 等托盘操作。优先使用端口 4820（回退到 4821–4829，再到随机高位端口），若 4820 上已有健康的 dashboard 在运行则直接采用而不重复绑定，并**与 Web dashboard 共存** —— `npm run dev` 与桌面应用可同时运行，Hook 会同时分发到两者。通知以原生操作系统弹窗（toast）形式触发（Web Push 在 Electron 中无法可靠工作）。首次由应用自有的服务器启动时，它会自动安装 Claude Code Hook 并启动后台服务，因此仅安装应用的用户无需任何手动设置即可让事件流转。详见 [`DESKTOP.md`](./DESKTOP.md) 与 [`desktop/README.md`](./desktop/README.md) |
 
-> **提供方范围与数据位置：** 设置会让 Claude Code / Codex / 两者的选择在整个应用中保持一致，并可在无需重启仪表盘的情况下更改任一会话数据目录。
+> **提供方范围与数据位置：** 设置会让 Claude 兼容范围（Claude Code + Cursor）/ Codex / 两者的选择在整个应用中保持一致。Claude Code 与 Codex 的目录可在无需重启仪表盘的情况下修改；Cursor 会从 `~/.cursor` 或 `DASHBOARD_CURSOR_HOME` 自动发现。
 >
 > **本地安全边界：** Run Agent 接受任意已存在的绝对工作目录，并在使用前规范化路径，因此仍支持从主目录和最近项目启动。托管 Webhook 提供方必须使用 HTTPS；generic 与 n8n 可为本地/自托管接收方使用 HTTP，投递不会跟随重定向。
 
@@ -644,6 +652,8 @@ flowchart LR
 | `DASHBOARD_LIVENESS_PROBE` | `1`（开启） | 设为 `0` 可禁用看门狗的**死亡会话存活性回收**（基于 `ps`/`lsof` 的探测，将匹配的本地 Claude Code 或 Codex CLI 进程已不存在的 `active` 会话标记为完成——恢复仪表盘停机期间丢失的 `SessionEnd`）。从**另一台机器**（家庭 Hook）转发来的会话会报告非 POSIX 的 `cwd`，会被回收自动跳过，因此混合的本地 + 转发部署不再需要关闭此项；仅在纯远程部署（本地进程无法证明任何事情）时才禁用它。在 Windows 和容器内自动禁用 |
 | `DASHBOARD_LIVENESS_IDLE_SECONDS` | `60` | **看门狗节拍**存活性回收的空闲门槛：只有当会话的 Transcript 至少有这么长时间未被写入时（磁盘上没有 Transcript 时以最后一次 Hook 写入为后备时钟），才会将其标记为完成，因此回合中或刚 resume 的会话绝不会因一次瞬时的探测偏差而消失。启动时的回收跳过该门槛——boot 时由探测单独决定，因此启动前一刻退出的会话会立即清除 |
 | `DASHBOARD_SESSION_SYNC_MS` | `30000` | 持续 `~/.claude/projects` 后台同步的轮询间隔（毫秒），用于显示启动后才加入、其会话从不经过 Hook 流入的项目。无论如何 `fs.watch` 监听器都会近乎即时触发；该轮询是安全兜底（监听器可能错过事件 / 在网络文件系统上不触发）。设为 `0` 可禁用轮询，同时让监听器保持运行 |
+| `DASHBOARD_CURSOR_HOME` | `~/.cursor` | 可选的 Cursor 原生主目录。Dashboard 读取 `projects/*/agent-transcripts`、关联 `chats` 元数据、回填已有会话，并在 Dashboard 数据目录中保存持久会话快照。 |
+| `DASHBOARD_CURSOR_SYNC_MS` | `5000` | 基于指纹的 Cursor Chat/Transcript 发现安全兜底间隔（毫秒）。文件系统监听仍会立即采集 CLI 启动与 Prompt 变化；`0` 只禁用周期扫描。 |
 | `DASHBOARD_CODEX_HOME` | `CODEX_HOME` 或 `~/.codex` | 可选的本地 Codex 状态目录。在设置中保存新位置会持久化此仪表盘专用覆盖、重新启用实时监视，并立即扫描新的 `sessions/` 树。 |
 | `DASHBOARD_CODEX_SYNC_MS` | `4000` | 仅追加 Codex rollout 的安全兜底轮询间隔（毫秒）。Codex Hook 会立即触发同一个增量采集器；设为 `0` 仅禁用轮询，在可用时仍保留文件系统监听器。 |
 | `DASHBOARD_CODEX_MAX_ATTEMPTS` | `5` | Codex 扫描针对同一个**未发生变化**的 rollout 连续尝试采集的失败次数上限，超出后便不再重试。扫描会刻意重新排队一个读取失败的 rollout，使瞬时故障（`SQLITE_BUSY`、写了一半的记录）在下一轮恢复；若不设上限，*永久性*故障会在整个进程生命周期内不断重复 —— 按 `DASHBOARD_CODEX_SYNC_MS` 默认的 4 秒计算，每个文件每天约 21,600 次尝试，每次都在单一 Node 线程上写一行日志。该计数包含第一次尝试、按文件独立统计，并在文件的大小或 mtime 发生变化时完全恢复，因此仅仅是写了一半的 rollout 仍能自行恢复。耗尽预算的那一次尝试会记录一条日志并注明上限。若慢速或不稳定的卷需要超过几轮扫描才能稳定，可调高此值 |

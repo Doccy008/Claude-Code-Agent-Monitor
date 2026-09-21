@@ -6,21 +6,21 @@
     "night": "夜深了"
   },
   "tagline": "你的 Agent 所做的一切，都不会隐于黑暗。",
-  "sub1": "为每一个 Claude Code 会话提供实时可观测性。",
+  "sub1": "实时观察 Claude Code、Cursor 与 Codex 会话。",
   "sub2": "Token、工具、成本与工作流，全部实时呈现。",
   "brand": "Claude Code 监控",
   "provider": {
     "title": "您想监控什么？",
     "description": "选择要在整个仪表板中显示的数据。您稍后可在设置中更改。",
     "claude": {
-      "description": "您的 Claude Code 会话、代理和成本。"
+      "description": "开箱即用地监控 Claude Code 与 Cursor 的会话、代理、历史和成本。"
     },
     "codex": {
       "description": "Codex 会话、GPT 令牌用量和成本。"
     },
     "both": {
       "label": "两者",
-      "description": "所有 Claude Code 和 Codex 会话、用量及成本。"
+      "description": "所有 Claude Code、Cursor 和 Codex 会话、用量及成本。"
     },
     "beta": "测试版",
     "continue": "进入仪表板"

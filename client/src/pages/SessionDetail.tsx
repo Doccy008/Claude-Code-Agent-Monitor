@@ -758,7 +758,12 @@ export function SessionDetail() {
                 >
                   {cfg
                     ? t(cfg.descKey, {
-                        provider: session.provider === "codex" ? "Codex" : "Claude",
+                        provider:
+                          session.provider === "codex"
+                            ? "Codex"
+                            : session.provider === "cursor"
+                              ? "Cursor"
+                              : "Claude",
                       })
                     : t("detail.waitingBanner.generic")}
                 </div>

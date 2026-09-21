@@ -12,7 +12,12 @@ const assert = require("node:assert/strict");
 // from the operator's persisted rates and startup migrations.
 process.env.DASHBOARD_DB_PATH = ":memory:";
 
-const { calculateCost, calculateGptCost, calculateProviderCost } = require("../routes/pricing");
+const {
+  calculateCost,
+  calculateCursorCost,
+  calculateGptCost,
+  calculateProviderCost,
+} = require("../routes/pricing");
 const {
   normalizeSpeed,
   normalizeGeo,
@@ -138,6 +143,50 @@ describe("calculateCost — token rates", () => {
     assert.equal(r.unpriced_models.length, 1);
     assert.equal(r.unpriced_models[0].model, "gpt-4o");
     assert.equal(r.unpriced_models[0].input_tokens, M);
+  });
+});
+
+describe("calculateCursorCost — Cursor rate-card isolation", () => {
+  const cursorRules = [
+    {
+      model_pattern: "grok-4.6%",
+      input_per_mtok: 2,
+      cache_write_per_mtok: 0,
+      cache_read_per_mtok: 0.5,
+      output_per_mtok: 6,
+    },
+    {
+      model_pattern: "grok-4.6-fast%",
+      input_per_mtok: 4,
+      cache_write_per_mtok: 0,
+      cache_read_per_mtok: 1,
+      output_per_mtok: 12,
+    },
+  ];
+
+  it("prices standard and Fast Cursor buckets with the matching Cursor row", () => {
+    const standard = calculateCursorCost(
+      [{ ...bucket({ model: "grok-4.6", input_tokens: M, output_tokens: M }) }],
+      cursorRules
+    );
+    const fast = calculateCursorCost(
+      [{ ...bucket({ model: "grok-4.6", speed: "fast", input_tokens: M, output_tokens: M }) }],
+      cursorRules
+    );
+    assert.equal(standard.total_cost, 8);
+    assert.equal(fast.total_cost, 16);
+    assert.equal(fast.breakdown[0].provider, "cursor");
+  });
+
+  it("does not fall through to Claude pricing", () => {
+    const result = calculateProviderCost(
+      [{ ...bucket({ model: "grok-4.6", input_tokens: M }), provider: "cursor" }],
+      RULES,
+      [],
+      cursorRules
+    );
+    assert.equal(result.total_cost, 2);
+    assert.equal(result.breakdown.length, 1);
   });
 });
 

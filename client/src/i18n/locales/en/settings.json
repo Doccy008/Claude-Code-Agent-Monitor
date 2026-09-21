@@ -32,6 +32,7 @@
   "pricing": {
     "title": "Anthropic Claude Model Pricing",
     "navClaude": "Claude Pricing",
+    "navCursor": "Cursor Pricing",
     "navGpt": "Codex Pricing",
     "description": "Anthropic API rates per million tokens (USD). Use % as wildcard in patterns. Some models have a time-limited introductory rate (shown in violet); usage on or before its cutoff date is billed at that rate, and usage after it at the standard rate.",
     "introNote": "Intro ${{input}}/${{output}} through {{until}}",
@@ -63,6 +64,29 @@
     "cacheWrite1h": "Cache Write (1h)",
     "fastInput": "Fast Input",
     "fastOutput": "Fast Output",
+    "cursor": {
+      "title": "Cursor Model Pricing",
+      "description": "Cursor's published rates for Cursor-native and routed third-party models. USD per 1M tokens; the most specific matching pattern wins.",
+      "source": "View Cursor Models & Pricing ↗",
+      "planNote": "Estimates use Cursor's per-token rate card. Included usage pools, plan allowances, Auto routing, and team token-rate billing can make your actual subscription charge differ.",
+      "name": "Name",
+      "input": "Input",
+      "write": "Cache write",
+      "cached": "Cache read",
+      "output": "Output",
+      "deleteConfirm": "Delete this Cursor pricing rule?",
+      "tooltip": {
+        "title": "How Cursor pricing works",
+        "howItWorks": "How it works",
+        "howItWorksBody": "Cursor session usage is priced only against this Cursor rate card. Input, cache-write, cache-read, and output tokens are calculated independently in USD per 1M tokens.",
+        "patternsTitle": "Pattern syntax",
+        "patternsBody": "Patterns use SQL-style % wildcards. More-specific patterns win, so a Fast or versioned model can safely override a broader family rule.",
+        "manualUpdates": "You must update prices manually",
+        "manualUpdatesBody": "Cursor publishes model pricing changes on its website; there is no live feed. Add or edit a rule when Cursor changes a model name or rate.",
+        "apiPricing": "Plan billing can differ",
+        "apiPricingBody": "The rate card estimates token value. Monthly included pools, additional usage, Auto routing, and Teams or Enterprise billing rules are not reconstructed by the dashboard."
+      }
+    },
     "gpt": {
       "title": "OpenAI GPT Model Pricing",
       "description": "Published OpenAI API rates for Codex usage. Standard requests use Short rates at or below 272K input tokens and Long rates above 272K; Fast mode has separate Short and Long rates. USD per 1M tokens.",
@@ -117,9 +141,9 @@
     "claude": "Claude Code",
     "codex": "Codex",
     "both": "Both",
-    "claudeDescription": "Show only Claude Code data.",
+    "claudeDescription": "Show Claude Code and Cursor data.",
     "codexDescription": "Show only Codex data.",
-    "bothDescription": "Combine Claude Code and Codex data.",
+    "bothDescription": "Combine Claude Code, Cursor, and Codex data.",
     "beta": "Beta"
   },
   "hooks": {
@@ -317,7 +341,8 @@
     "agents": "agents",
     "events": "events",
     "sessionsWithCost": "sessions with cost",
-    "pricingRules": "pricing rules"
+    "pricingRules": "pricing rules",
+    "cursorPricingRules": "Cursor pricing rules"
   },
   "messages": {
     "failedLoad": "Failed to load",
@@ -568,5 +593,5 @@
     "removeKeep": "Remove (keep data)",
     "remoteSourceBadgeTitle": "Collected from a remote machine"
   },
-  "cursorPathsNote": "Informational: Cursor sessions count here too — Cursor happens to use the same ~/.claude paths as Claude Code (locally and on synced remotes)."
+  "cursorPathsNote": "Cursor is included with the Claude Code dashboard scope. Local history is discovered and snapshotted from ~/.cursor automatically; remote Cursor folders are not synced by Claude-only SSH imports."
 }

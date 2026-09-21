@@ -171,7 +171,7 @@
       "valueDateRangeDesc": "Mốc thời gian ISO dưới/trên cho created_at của sự kiện.",
       "statusesTitle": "Trạng thái",
       "statusesIntro": "Trạng thái được suy ra từ event_type.",
-      "statusWorkingDesc": "Công việc đang bắt đầu hoặc đang chạy: prompt vừa được gửi, một lượt Codex bắt đầu, hoặc một công cụ sắp chạy (PreToolUse, UserPromptSubmit, codex_user_message, codex_task_started, codex_tool_call).",
+      "statusWorkingDesc": "Công việc đang bắt đầu hoặc đang chạy: prompt vừa được gửi, một lượt Codex bắt đầu, hoặc một công cụ sắp chạy (PreToolUse, UserPromptSubmit, cursor_user_message, codex_user_message, codex_task_started, codex_tool_call).",
       "statusWaitingDesc": "Một công cụ đã trả kết quả và lượt vẫn tiếp tục, hoặc sự kiện thuộc vòng đời/siêu dữ liệu không mang ý nghĩa tiến độ đáng tin cậy (PostToolUse, các kết quả công cụ codex_*_end, SessionStart, Notification, TurnDuration, codex_turn_aborted). Các sự kiện siêu dữ liệu vẫn mang huy hiệu Waiting nhưng cố ý không nằm trong bộ lọc Waiting, vốn chỉ khớp với kết quả công cụ.",
       "statusCompletedDesc": "Mốc kết thúc lượt hoặc vòng đời (Stop, SessionEnd, SubagentStop, Compaction, codex_task_complete, codex_context_compacted).",
       "statusErrorDesc": "Sự kiện lỗi (error, APIError, codex_error).",

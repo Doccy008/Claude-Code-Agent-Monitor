@@ -81,11 +81,12 @@ Event filtering covers event types, tools, agents, sessions, text, time range, p
 ### Pricing and cost
 
 - `dashboard_get_pricing_rules`, `dashboard_upsert_pricing_rule`, `dashboard_delete_pricing_rule`
+- `dashboard_get_cursor_pricing_rules`, `dashboard_upsert_cursor_pricing_rule`, `dashboard_delete_cursor_pricing_rule`
 - `dashboard_get_gpt_pricing_rules`, `dashboard_upsert_gpt_pricing_rule`, `dashboard_delete_gpt_pricing_rule`
 - `dashboard_get_total_cost`, `dashboard_get_session_cost`
 - `dashboard_reset_pricing_defaults`
 
-Claude pricing includes standard, 1-hour cache-write, fast-mode, and introductory rates. GPT/Codex pricing includes short-context, long-context, and fast-mode rates.
+Claude pricing includes standard, 1-hour cache-write, fast-mode, and introductory rates. Cursor pricing uses its independent input/cache-write/cache-read/output rate card. GPT/Codex pricing includes short-context, long-context, and fast-mode rates.
 
 ### Workflows
 

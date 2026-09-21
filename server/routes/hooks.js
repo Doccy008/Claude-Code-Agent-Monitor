@@ -1,8 +1,8 @@
 /**
- * @file Express router for Claude Code hook events plus a fail-safe Codex
- * rollout hook endpoint. It updates sessions and agents, extracts usage and
+ * @file Express router for Claude Code and Cursor hook events plus a fail-safe
+ * Codex rollout endpoint. It updates sessions and agents, extracts usage and
  * compact human-turn card context, and broadcasts real-time changes without
- * blocking either CLI.
+ * blocking any agent host.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -21,6 +21,7 @@ const liveness = require("../lib/session-liveness");
 const { getRemotePushToken, extractHeaderOnlyToken, tokensMatch } = require("../lib/security");
 const { REMOTE_PROVIDERS, assertProvider } = require("../lib/remote-sync");
 const { normalizeSpeed, normalizeGeo, normalizeTier } = require("../lib/token-usage");
+const { isCursorTranscriptPath } = require("../lib/cursor-home");
 
 const router = Router();
 
@@ -213,6 +214,9 @@ function recoverInterruptedSession(sessionId, fullSess, mainAgentId, reasonSuffi
 function ensureSession(sessionId, data, origin = null) {
   let session = stmts.getSession.get(sessionId);
   const repoRemoteUrl = sanitizeRepoRemoteUrl(data.repo_remote_url);
+  const cursorSession =
+    data.provider === "cursor" ||
+    (typeof data.transcript_path === "string" && isCursorTranscriptPath(data.transcript_path));
   if (!session) {
     stmts.insertSession.run(
       sessionId,
@@ -222,6 +226,7 @@ function ensureSession(sessionId, data, origin = null) {
       data.model || null,
       null
     );
+    if (cursorSession) setSessionProviderStmt.run("cursor", sessionId);
     // A hook that proved REMOTE_PUSH_TOKEN (see POST /event) comes from
     // another machine: birth the row as remote-push owned so the same
     // collector's POST /ingest-batch can enrich it with tokens/tool events.
@@ -272,6 +277,14 @@ function ensureSession(sessionId, data, origin = null) {
   // make better-sqlite3 throw inside the surrounding processEvent transaction.
   if (typeof data.transcript_path === "string" && data.transcript_path) {
     stmts.setSessionTranscriptPath.run(data.transcript_path, sessionId);
+  }
+  // Cursor currently emits the Claude-compatible hook envelope but stores its
+  // transcript under ~/.cursor. Provider identity must therefore come from the
+  // durable transcript path, not from the event names. Repair pre-v2.2.2 rows
+  // on their very next hook as well as classifying newly created rows.
+  if (cursorSession && session.provider !== "cursor") {
+    setSessionProviderStmt.run("cursor", sessionId);
+    session = stmts.getSession.get(sessionId);
   }
   // The local hook is authenticated before it reaches this route. Persist the
   // first collector-observed Git remote as opaque metadata; presentation
@@ -1349,6 +1362,29 @@ router.post("/event", (req, res) => {
     evaluateEvent(result);
   } catch {
     /* non-fatal */
+  }
+
+  // Cursor's compatible hooks provide real-time lifecycle/tool events, while
+  // its native meta.json + prompt_history.json carry the title, cwd, turn
+  // history, and card context that the hook envelope omits. Enrich and snapshot
+  // off the response path so Cursor never waits on local history I/O.
+  if (data.session_id && isCursorTranscriptPath(data.transcript_path)) {
+    setImmediate(() => {
+      try {
+        const { enrichCursorSession } = require("../lib/cursor-ingest");
+        const enriched = enrichCursorSession(dbModule, data.transcript_path, {
+          sessionId: data.session_id,
+          model: data.model,
+        });
+        if (!enriched.changed || !enriched.session) return;
+        broadcast("session_updated", enriched.session);
+        for (const agent of stmts.listAgentsBySession.all(data.session_id)) {
+          broadcast("agent_updated", agent);
+        }
+      } catch {
+        // Fail-safe by design: the continuous Cursor sync retries later.
+      }
+    });
   }
 
   // After SubagentStop, scan the session's subagent JSONL files and ingest any

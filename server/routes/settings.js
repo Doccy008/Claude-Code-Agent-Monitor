@@ -1,6 +1,6 @@
 /**
  * @file Express router for dashboard settings: system information, pricing and
- * hook operations, data maintenance, and live-safe Claude Code/Codex session
+ * hook operations, data maintenance, and live-safe Claude Code/Cursor/Codex session
  * home configuration for the frontend Settings experience.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
@@ -16,8 +16,10 @@ const {
   DB_PATH,
   DEFAULT_PRICING,
   DEFAULT_GPT_PRICING,
+  DEFAULT_CURSOR_PRICING,
   applyIntroPricing,
   seedGptPricing,
+  seedCursorPricing,
 } = require("../db");
 const { getConnectionCount } = require("../websocket");
 const { transcriptCache } = require("./hooks");
@@ -56,7 +58,14 @@ function getDbSize() {
 }
 
 function getTableCounts() {
-  const tables = ["sessions", "agents", "events", "model_pricing", "gpt_model_pricing"];
+  const tables = [
+    "sessions",
+    "agents",
+    "events",
+    "model_pricing",
+    "cursor_model_pricing",
+    "gpt_model_pricing",
+  ];
   const counts = {};
   for (const t of tables) {
     counts[t] = db.prepare(`SELECT COUNT(*) as c FROM ${t}`).get().c;
@@ -152,13 +161,17 @@ router.post("/clear-data", (_req, res) => {
   res.json({ ok: true, cleared: counts });
 });
 
-// POST /api/settings/reimport — re-import legacy sessions from ~/.claude/
+// POST /api/settings/reimport — re-import Claude Code and Cursor local history.
 router.post("/reimport", async (_req, res) => {
   try {
     const { importAllSessions } = require("../../scripts/import-history");
+    const { syncCursorSessions } = require("../lib/cursor-ingest");
     const dbModule = require("../db");
-    const result = await importAllSessions(dbModule);
-    res.json({ ok: true, ...result });
+    const [claude, cursor] = await Promise.all([
+      importAllSessions(dbModule),
+      syncCursorSessions(dbModule),
+    ]);
+    res.json({ ok: true, ...claude, cursor });
   } catch (err) {
     res.status(500).json({
       error: { code: "IMPORT_FAILED", message: err.message },
@@ -225,13 +238,19 @@ router.post("/install-hooks", (req, res) => {
 // POST /api/settings/reset-pricing — reset pricing to defaults
 router.post("/reset-pricing", (req, res) => {
   const provider = req.body?.provider;
-  if (provider !== undefined && provider !== "claude" && provider !== "codex") {
+  if (
+    provider !== undefined &&
+    provider !== "claude" &&
+    provider !== "cursor" &&
+    provider !== "codex"
+  ) {
     return res.status(400).json({
-      error: { code: "INVALID_INPUT", message: "provider must be claude or codex" },
+      error: { code: "INVALID_INPUT", message: "provider must be claude, cursor, or codex" },
     });
   }
-  const resetClaude = provider !== "codex";
-  const resetCodex = provider !== "claude";
+  const resetClaude = provider === undefined || provider === "claude";
+  const resetCursor = provider === undefined || provider === "cursor";
+  const resetCodex = provider === undefined || provider === "codex";
 
   if (resetClaude) {
     db.prepare("DELETE FROM model_pricing").run();
@@ -249,12 +268,17 @@ router.post("/reset-pricing", (req, res) => {
     db.prepare("DELETE FROM gpt_model_pricing").run();
     seedGptPricing(db);
   }
+  if (resetCursor) {
+    db.prepare("DELETE FROM cursor_model_pricing").run();
+    seedCursorPricing(db);
+  }
 
   const pricing = stmts.listPricing.all();
   res.json({
     ok: true,
     provider: provider || "both",
     pricing,
+    cursor_pricing: stmts.listCursorPricing.all(),
     gpt_pricing: stmts.listGptPricing.all(),
   });
 });

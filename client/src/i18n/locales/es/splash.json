@@ -6,21 +6,21 @@
     "night": "Trabajando tarde"
   },
   "tagline": "Nada de lo que hacen tus agentes queda en la oscuridad.",
-  "sub1": "Observabilidad en tiempo real para cada sesión de Claude Code.",
+  "sub1": "Observabilidad en tiempo real para sesiones de Claude Code, Cursor y Codex.",
   "sub2": "Tokens, herramientas, costos y flujos, todo en vivo.",
   "brand": "Claude Code Monitor",
   "provider": {
     "title": "¿Qué te gustaría monitorizar?",
     "description": "Elige la fuente de datos que se muestra en todo el panel. Puedes cambiarla más tarde en Configuración.",
     "claude": {
-      "description": "Tus sesiones, agentes y costos de Claude Code."
+      "description": "Sesiones, agentes, historial y costos de Claude Code y Cursor, incluidos desde el primer momento."
     },
     "codex": {
       "description": "Sesiones de Codex, uso de tokens GPT y costos."
     },
     "both": {
       "label": "Ambos",
-      "description": "Todas las sesiones, el uso y los costos de Claude Code y Codex."
+      "description": "Todas las sesiones, el uso y los costos de Claude Code, Cursor y Codex."
     },
     "beta": "Beta",
     "continue": "Continuar al panel"

@@ -32,6 +32,7 @@
   "pricing": {
     "title": "Precios de modelos Claude de Anthropic",
     "navClaude": "Precios de Claude",
+    "navCursor": "Precios de Cursor",
     "navGpt": "Precios de Codex",
     "description": "Tarifas de API de Anthropic por millón de tokens (USD). Usa % como comodín en los patrones. Algunos modelos tienen una tarifa introductoria por tiempo limitado (mostrada en violeta); el uso en o antes de su fecha de corte se factura a esa tarifa, y el uso posterior a la tarifa estándar.",
     "introNote": "Intro ${{input}}/${{output}} hasta {{until}}",
@@ -63,6 +64,29 @@
     "cacheWrite1h": "Escritura de Caché (1h)",
     "fastInput": "Entrada Rápida",
     "fastOutput": "Salida Rápida",
+    "cursor": {
+      "title": "Precios de modelos de Cursor",
+      "description": "Tarifas publicadas por Cursor para modelos propios y de terceros enrutados. USD por 1M de tokens; gana el patrón coincidente más específico.",
+      "source": "Ver modelos y precios de Cursor ↗",
+      "planNote": "Las estimaciones usan la tarifa por token de Cursor. Los grupos de uso incluidos, límites del plan, enrutamiento Auto y tarifas de Teams pueden hacer que el cargo real difiera.",
+      "name": "Nombre",
+      "input": "Entrada",
+      "write": "Escritura de caché",
+      "cached": "Lectura de caché",
+      "output": "Salida",
+      "deleteConfirm": "¿Eliminar esta regla de precios de Cursor?",
+      "tooltip": {
+        "title": "Cómo funcionan los precios de Cursor",
+        "howItWorks": "Cómo funciona",
+        "howItWorksBody": "El uso de sesiones de Cursor se calcula solo con esta tarifa de Cursor. Los tokens de entrada, escritura y lectura de caché y salida se calculan por separado en USD por 1M de tokens.",
+        "patternsTitle": "Sintaxis de patrones",
+        "patternsBody": "Los patrones usan comodines % de estilo SQL. Los más específicos tienen prioridad, por lo que un modelo Fast o versionado puede sobrescribir una regla familiar más amplia.",
+        "manualUpdates": "Debes actualizar los precios manualmente",
+        "manualUpdatesBody": "Cursor publica cambios de precios en su sitio web y no existe un feed en vivo. Añade o edita una regla cuando cambie el nombre o la tarifa de un modelo.",
+        "apiPricing": "La facturación del plan puede variar",
+        "apiPricingBody": "La tarifa estima el valor de los tokens. El panel no reconstruye uso mensual incluido, uso adicional, enrutamiento Auto ni reglas de facturación de Teams o Enterprise."
+      }
+    },
     "gpt": {
       "title": "Precios de modelos GPT de OpenAI",
       "description": "Tarifas de API de OpenAI publicadas para el uso de Codex. Las solicitudes estándar usan tarifas cortas con 272K tokens de entrada o menos y largas por encima de 272K; el modo rápido tiene tarifas separadas para contexto corto y largo. USD por 1M de tokens.",
@@ -117,9 +141,9 @@
     "claude": "Claude Code",
     "codex": "Codex",
     "both": "Ambos",
-    "claudeDescription": "Mostrar solo datos de Claude Code.",
+    "claudeDescription": "Mostrar datos de Claude Code y Cursor.",
     "codexDescription": "Mostrar solo datos de Codex.",
-    "bothDescription": "Combinar datos de Claude Code y Codex.",
+    "bothDescription": "Combinar datos de Claude Code, Cursor y Codex.",
     "beta": "Beta"
   },
   "hooks": {
@@ -317,7 +341,8 @@
     "agents": "agentes",
     "events": "eventos",
     "sessionsWithCost": "sesiones con costo",
-    "pricingRules": "reglas de precios"
+    "pricingRules": "reglas de precios",
+    "cursorPricingRules": "reglas de precios de Cursor"
   },
   "messages": {
     "failedLoad": "Error al cargar",
@@ -568,5 +593,5 @@
     "removeKeep": "Eliminar (conservar datos)",
     "remoteSourceBadgeTitle": "Recopilado desde una máquina remota"
   },
-  "cursorPathsNote": "Informativo: Las sesiones de Cursor también se cuentan aquí — Cursor usa las mismas rutas ~/.claude que Claude Code (localmente y en remotos sincronizados)."
+  "cursorPathsNote": "Cursor está incluido en el ámbito de Claude Code del panel. El historial local se detecta y conserva automáticamente desde ~/.cursor; las importaciones SSH solo de Claude no sincronizan carpetas remotas de Cursor."
 }

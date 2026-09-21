@@ -165,6 +165,7 @@ export function statusFromEventType(type: string): "working" | "waiting" | "comp
     // began, or a tool is about to run.
     case "PreToolUse":
     case "UserPromptSubmit":
+    case "cursor_user_message":
     case "codex_user_message":
     case "codex_task_started":
     case "codex_tool_call":

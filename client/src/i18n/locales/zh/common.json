@@ -171,7 +171,7 @@
       "valueDateRangeDesc": "事件 created_at 的 ISO 日期时间上下界。",
       "statusesTitle": "状态徽章",
       "statusesIntro": "状态由 event_type 派生。",
-      "statusWorkingDesc": "工作正在开始或进行中：提示词已提交、Codex 回合已开始，或工具即将运行 (PreToolUse、UserPromptSubmit、codex_user_message、codex_task_started、codex_tool_call)。",
+      "statusWorkingDesc": "工作正在开始或进行中：提示词已提交、Codex 回合已开始，或工具即将运行 (PreToolUse、UserPromptSubmit、cursor_user_message、codex_user_message、codex_task_started、codex_tool_call)。",
       "statusWaitingDesc": "工具已返回结果且该回合仍在继续，或该事件属于不具备可靠进度含义的生命周期/元数据 (PostToolUse、codex_*_end 工具结果、SessionStart、Notification、TurnDuration、codex_turn_aborted)。 元数据事件仍显示 Waiting 徽章，但被刻意排除在 Waiting 筛选预设之外——该预设只匹配工具结果。",
       "statusCompletedDesc": "回合或生命周期节点 (Stop、SessionEnd、SubagentStop、Compaction、codex_task_complete、codex_context_compacted)。",
       "statusErrorDesc": "错误事件 (error、APIError、codex_error)。",

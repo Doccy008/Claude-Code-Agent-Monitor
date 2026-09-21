@@ -538,6 +538,34 @@ function shouldTryWslFallback(source, err, provider = "claude") {
   );
 }
 
+/**
+ * Pipe one child-process stream into another without leaving either endpoint's
+ * `error` event unhandled. In particular, local `tar` can close stdin while
+ * SSH is still producing archive bytes; Node then emits EPIPE on the pipe
+ * destination. Without this boundary that routine transfer failure becomes an
+ * uncaught exception and takes down the entire dashboard during a dev reload.
+ */
+function pipeChildStreams(source, destination, onError) {
+  let reported = false;
+  const handleError = (error) => {
+    try {
+      source.unpipe(destination);
+    } catch {
+      /* the streams may already be detached */
+    }
+    if (reported) return;
+    reported = true;
+    onError(error);
+  };
+  source.on("error", handleError);
+  destination.on("error", handleError);
+  source.pipe(destination);
+  return () => {
+    source.removeListener("error", handleError);
+    destination.removeListener("error", handleError);
+  };
+}
+
 /** Sandboxed local staging dir for one source/provider mirror. */
 function stagingDir(sourceId, provider = "claude") {
   assertProvider(provider);
@@ -729,7 +757,9 @@ function mirrorViaWslTar(source, wslHome, dest, timeoutMs, provider = "claude") 
     let sshChild;
     let tarChild;
     let timedOut = false;
+    let settled = false;
     let stderr = "";
+    let detachPipeHandlers = () => {};
     const remoteCmd = wslTarRemoteCmd(wslHome, provider);
 
     const timer =
@@ -750,6 +780,8 @@ function mirrorViaWslTar(source, wslHome, dest, timeoutMs, provider = "claude") 
         : null;
 
     const fail = (err) => {
+      if (settled) return;
+      settled = true;
       if (timer) clearTimeout(timer);
       reject(err);
     };
@@ -792,14 +824,33 @@ function mirrorViaWslTar(source, wslHome, dest, timeoutMs, provider = "claude") 
         };
         sshChild.stderr.on("data", onStderr);
         tarChild.stderr.on("data", onStderr);
-        sshChild.stdout.pipe(tarChild.stdin);
+        detachPipeHandlers = pipeChildStreams(sshChild.stdout, tarChild.stdin, (error) => {
+          const code = error?.code || error?.message || "stream error";
+          if (stderr.length < 65536) stderr += `\narchive stream: ${code}`;
+          // Stop both producers promptly. Most importantly, the stream error is
+          // now contained inside this one source sync instead of surfacing as
+          // an uncaught EPIPE that terminates the dashboard process.
+          try {
+            sshChild?.kill("SIGTERM");
+          } catch {
+            /* already stopped */
+          }
+          try {
+            tarChild?.kill("SIGTERM");
+          } catch {
+            /* already stopped */
+          }
+          fail(new Error(`WSL archive transfer stream failed: ${code}`));
+        });
 
         let sshCode;
         let tarCode;
         let pending = 2;
         const done = () => {
           if (--pending > 0) return;
+          detachPipeHandlers();
           if (timer) clearTimeout(timer);
+          if (settled) return;
           if (timedOut) {
             fail(new Error(`WSL transfer timed out after ${timeoutMs}ms`));
             return;
@@ -825,6 +876,7 @@ function mirrorViaWslTar(source, wslHome, dest, timeoutMs, provider = "claude") 
             );
             return;
           }
+          settled = true;
           resolve({ titleIndexWarning: null });
         };
 
@@ -1443,6 +1495,7 @@ module.exports = {
   providerHistorySegment,
   parseSshGOutput,
   isLegacyScpProtocolError,
+  pipeChildStreams,
   HOST_RE,
   REMOTE_PATH_RE,
   // Provider vocabulary — reused by routes/hooks.js's remote-push ingest route

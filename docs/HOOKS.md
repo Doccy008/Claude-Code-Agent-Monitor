@@ -23,7 +23,7 @@ Comprehensive guide to integrating with Claude Code's hook system for real-time 
 
 Claude Code provides a hook system that allows external tools to receive real-time events during agent execution. Agent Dashboard uses these hooks to capture session lifecycle, tool executions, and notifications.
 
-> **Cursor (informational):** Live hooks fire from Claude Code. **Cursor** sessions that only exist as JSONL under `~/.claude` (Cursor uses the same paths locally) are still counted — they appear via startup import, continuous project sync, or remote SSH sync, not via hooks.
+> **Cursor:** Cursor does not need to reach a tool hook before appearing. A filesystem watcher imports `~/.cursor/chats/*/<session>/meta.json` at `agent` startup and its `prompt_history.json` on submit; compatible hook envelopes and the later native transcript add tool/assistant detail. Startup and periodic scans still backfill sessions created while the dashboard was offline.
 
 ```mermaid
 graph TB
@@ -656,6 +656,10 @@ graph TB
 ```
 
 ### Transcript-derived sync
+
+Cursor uses the same fail-safe hook transport where available, but its native lifecycle starts under `~/.cursor/chats`, not in the later JSONL. The watcher creates `provider = 'cursor'` rows from `meta.json` at CLI launch, changes the main agent from waiting to working when `prompt_history.json` gains a submitted turn, persists a deduplicated `cursor_user_message` for Timeline/last-active state, and broadcasts the same session/agent/event WebSocket frames as hooks. A hook payload whose `transcript_path` matches `~/.cursor/projects/*/agent-transcripts/<session>/<session>.jsonl` is still classified as Cursor. The enrichment pass joins the canonical transcript when it arrives, updates native title/cwd/turn metadata, imports sibling `subagents/*.jsonl`, and snapshots the files under the dashboard data directory.
+
+Startup and periodic `cursor-ingest` sweeps also discover sessions that existed before the dashboard or never emitted a hook. This is the backfill path for older placeholder cards. Before JSONL exists, Conversation reads synthesize stable user-message rows from prompt history; once the transcript arrives, matching ids replace those rows without duplicates. Reads then resolve the original path first and the durable snapshot second, so messages and tool calls survive Cursor cleanup. `DASHBOARD_CURSOR_HOME` overrides the root and `DASHBOARD_CURSOR_SYNC_MS=0` disables only the polling fallback—filesystem watching remains active.
 
 On every event that carries a `transcript_path`, the shared `TranscriptCache` re-reads the JSONL (incrementally) and the ingestor keeps three session fields in sync with what the user is actually doing in the CLI:
 
