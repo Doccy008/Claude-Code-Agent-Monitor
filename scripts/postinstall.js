@@ -15,6 +15,7 @@
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { sanitizeNpmEnv } = require("./run-npm.js");
 
 const clientDir = path.join(__dirname, "..", "client");
 const clientManifest = path.join(clientDir, "package.json");
@@ -29,20 +30,11 @@ if (!fs.existsSync(clientManifest)) {
 
 console.log("[postinstall] installing client dependencies (client/)...");
 
-// npm passes its full merged config down to lifecycle children via
-// `npm_config_*` env vars — including an `allow-scripts` list the user set in
-// their own `.npmrc`. npm rejects that setting when it arrives through env or
-// CLI rather than `.npmrc` in a project-scoped install (`EALLOWSCRIPTS`), so
-// the nested install inherits a value it cannot use and fails, breaking `npm
-// ci` / `npm run setup` for those users. Strip the allow-scripts keys from the
-// child's environment; the child still reads the user's and project `.npmrc`
-// files directly, so intended behavior (and its security posture) is unchanged.
-const childEnv = { ...process.env };
-for (const key of Object.keys(childEnv)) {
-  if (key.startsWith("npm_config_allow_scripts")) {
-    delete childEnv[key];
-  }
-}
+// The nested client install would otherwise inherit `npm_config_allow_scripts`
+// from the parent lifecycle and fail with EALLOWSCRIPTS for users who have
+// allow-scripts set in their global `.npmrc`. Sanitize the child environment
+// with the shared helper (see scripts/run-npm.js) — the child still reads the
+// user's and project `.npmrc` files directly, so intended behavior is unchanged.
 
 // `shell: true` is required on Windows so npm's `.cmd` shim resolves (Node
 // rejects spawning `.cmd`/`.bat` directly since 18.20 / CVE-2024-27980); the
@@ -51,7 +43,7 @@ const result = spawnSync("npm", ["install"], {
   cwd: clientDir,
   stdio: "inherit",
   shell: true,
-  env: childEnv,
+  env: sanitizeNpmEnv(process.env),
 });
 
 if (result.error) {
