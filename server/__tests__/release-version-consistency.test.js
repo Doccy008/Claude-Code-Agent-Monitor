@@ -194,4 +194,11 @@ describe("release version consistency", () => {
     );
     assert.equal(citation.version, packageVersion, "CITATION.cff must track the root release");
   });
+
+  it("keeps public site metadata on the shipping release", () => {
+    const versionEntry = `"softwareVersion": "${packageVersion}"`;
+
+    assert.ok(readText("index.html").includes(versionEntry));
+    assert.ok(readText("wiki/index.html").includes(versionEntry));
+  });
 });
