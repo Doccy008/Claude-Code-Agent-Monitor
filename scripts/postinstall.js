@@ -29,6 +29,21 @@ if (!fs.existsSync(clientManifest)) {
 
 console.log("[postinstall] installing client dependencies (client/)...");
 
+// npm passes its full merged config down to lifecycle children via
+// `npm_config_*` env vars — including an `allow-scripts` list the user set in
+// their own `.npmrc`. npm rejects that setting when it arrives through env or
+// CLI rather than `.npmrc` in a project-scoped install (`EALLOWSCRIPTS`), so
+// the nested install inherits a value it cannot use and fails, breaking `npm
+// ci` / `npm run setup` for those users. Strip the allow-scripts keys from the
+// child's environment; the child still reads the user's and project `.npmrc`
+// files directly, so intended behavior (and its security posture) is unchanged.
+const childEnv = { ...process.env };
+for (const key of Object.keys(childEnv)) {
+  if (key.startsWith("npm_config_allow_scripts")) {
+    delete childEnv[key];
+  }
+}
+
 // `shell: true` is required on Windows so npm's `.cmd` shim resolves (Node
 // rejects spawning `.cmd`/`.bat` directly since 18.20 / CVE-2024-27980); the
 // fixed arg list has no shell-significant characters, so this stays safe.
@@ -36,6 +51,7 @@ const result = spawnSync("npm", ["install"], {
   cwd: clientDir,
   stdio: "inherit",
   shell: true,
+  env: childEnv,
 });
 
 if (result.error) {
