@@ -2078,6 +2078,66 @@ describe("Hook Event Processing", () => {
 
     fs.unlinkSync(transcriptPath);
   });
+
+  it("should include growing same-model flat subagents but exclude workflow agents", async () => {
+    const sid = `hook-same-model-subagent-${Date.now()}`;
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-subagent-tokens-"));
+    const transcriptPath = path.join(projectDir, `${sid}.jsonl`);
+    const subagentDir = path.join(projectDir, sid, "subagents");
+    const workflowDir = path.join(subagentDir, "workflows", "run-1");
+    const subagentPath = path.join(subagentDir, "agent-flat.jsonl");
+    fs.mkdirSync(workflowDir, { recursive: true });
+
+    const usageLine = (id, input, output) =>
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          id,
+          model: "claude-sonnet-4-6",
+          role: "assistant",
+          usage: {
+            input_tokens: input,
+            output_tokens: output,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      });
+
+    fs.writeFileSync(transcriptPath, usageLine("main-1", 100, 10) + "\n");
+    fs.writeFileSync(subagentPath, usageLine("sub-1", 50, 5) + "\n");
+    fs.writeFileSync(
+      path.join(workflowDir, "agent-workflow.jsonl"),
+      usageLine("workflow-1", 1000, 100) + "\n"
+    );
+
+    try {
+      let res = await post("/api/hooks/event", {
+        hook_type: "PreToolUse",
+        data: { session_id: sid, tool_name: "Read", transcript_path: transcriptPath },
+      });
+      assert.equal(res.status, 200);
+
+      let cost = await fetch(`/api/pricing/cost/${sid}`);
+      let bucket = cost.body.breakdown.find((row) => row.model === "claude-sonnet-4-6");
+      assert.equal(bucket.input_tokens, 150, "main and flat same-model subagent are combined");
+      assert.equal(bucket.output_tokens, 15);
+
+      fs.appendFileSync(subagentPath, usageLine("sub-2", 25, 3) + "\n");
+      res = await post("/api/hooks/event", {
+        hook_type: "PostToolUse",
+        data: { session_id: sid, tool_name: "Read", transcript_path: transcriptPath },
+      });
+      assert.equal(res.status, 200);
+
+      cost = await fetch(`/api/pricing/cost/${sid}`);
+      bucket = cost.body.breakdown.find((row) => row.model === "claude-sonnet-4-6");
+      assert.equal(bucket.input_tokens, 175, "later hooks pick up subagent transcript growth");
+      assert.equal(bucket.output_tokens, 18);
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
 });
 
 // ============================================================

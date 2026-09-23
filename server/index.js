@@ -313,17 +313,18 @@ function autoImportLegacySessions() {
 }
 
 /**
- * One-time repair of token totals inflated before usage was reconciled per
- * `message.id` (issue #293).
+ * One-time repair of token totals that predate complete transcript accounting:
+ * per-record inflation from issue #293 and omitted same-model subagents from
+ * issue #345.
  *
- * Why this cannot be left to the parser fix alone: `replaceTokenUsage` is a
- * monotonic high-water mark, so when the corrected parser re-reads a transcript
- * and produces a LOWER total, the difference is folded into `baseline_*` and the
- * effective number never drops. Every session that existed before the upgrade
- * would keep its inflated cost forever while new sessions priced correctly.
+ * Why this cannot be left to live fixes alone: `replaceTokenUsage` is a
+ * monotonic high-water mark, so when a corrected parser produces a LOWER total,
+ * the difference is folded into `baseline_*` and the effective number never
+ * drops. A completed session missing subagent usage may also never emit another
+ * hook. Re-reading every stored transcript heals both cases.
  *
  * Guards, in order:
- *   - a `.token-repair-v1.done` marker next to the database, written only after
+ *   - a `.token-repair-v2.done` marker next to the database, written only after
  *     a completed pass, so a crash mid-repair retries instead of being skipped;
  *   - `DASHBOARD_TOKEN_REPAIR=0` opts out entirely;
  *   - skipped (without writing the marker) while another dashboard shares this
@@ -345,7 +346,7 @@ function repairInflatedTokenTotals() {
     if (process.env.DASHBOARD_TOKEN_REPAIR === "0") return;
 
     const dbModule = require("./db");
-    const markerPath = path.join(path.dirname(dbModule.DB_PATH), ".token-repair-v1.done");
+    const markerPath = path.join(path.dirname(dbModule.DB_PATH), ".token-repair-v2.done");
     if (fs.existsSync(markerPath)) return;
 
     // Another dashboard on the same database would race this sweep. Skip
@@ -372,7 +373,7 @@ function repairInflatedTokenTotals() {
           if (result.sessionsTouched > 0) {
             console.log(
               `Repaired token totals for ${result.sessionsTouched} session(s) ` +
-                `(issue #293). Pre-repair values kept in token_usage_pre_repair.`
+                `(issues #293 and #345). Pre-repair values kept in token_usage_pre_repair.`
             );
           }
           try {
@@ -406,9 +407,9 @@ function startBackgroundServices() {
   // One-time legacy-session backfill (a no-op once its marker file exists).
   autoImportLegacySessions();
 
-  // One-time repair of token totals inflated by the pre-reconciliation parser
-  // (issue #293). Marker-gated and deferred; see the function for why the
-  // parser fix alone cannot heal historical rows.
+  // One-time repair of historical token totals affected by the old parser or
+  // omitted same-model subagents (issues #293 and #345). Marker-gated and
+  // deferred; see the function for why live fixes cannot heal every old row.
   repairInflatedTokenTotals();
 
   // Boot liveness reap. When the user quit Claude Code while the dashboard

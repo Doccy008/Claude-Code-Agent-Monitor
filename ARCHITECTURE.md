@@ -1498,17 +1498,17 @@ unconditionally, and per-record content-block processing (thinking counts,
 `tool_use` extraction) is deliberately unchanged, because each record carries
 a *distinct* block even when the usage copy is repeated.
 
-#### Repairing an already-inflated database
+#### Repairing historical token totals
 
-The parser fix alone cannot heal historical rows: `replaceTokenUsage` is a
-high-water mark, so a corrected (lower) re-read just migrates the over-count
-into `baseline_*`. Every session that predates the upgrade would keep its
-inflated cost forever while new sessions price correctly — so the dashboard
+The live parser and hook fixes cannot heal every historical row:
+`replaceTokenUsage` is a high-water mark, so a corrected lower re-read just
+migrates an over-count into `baseline_*`, while completed sessions missing
+same-model subagent usage may never emit another hook. The dashboard therefore
 runs the repair **for the user**, once per database, rather than leaving it to
 a CLI flag nobody will find.
 
 `repairInflatedTokenTotals()` (in `server/index.js`, started from
-`startBackgroundServices`) is gated by a `.token-repair-v1.done` marker written
+`startBackgroundServices`) is gated by a `.token-repair-v2.done` marker written
 next to the database only after a completed pass, so a crash mid-repair retries
 instead of being skipped. It is deferred off the boot path so a large corpus
 never delays the UI, skipped (without consuming the marker) while

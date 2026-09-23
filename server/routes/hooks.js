@@ -12,7 +12,11 @@ const dbModule = require("../db");
 const { stmts, db } = dbModule;
 const { broadcast } = require("../websocket");
 const TranscriptCache = require("../lib/transcript-cache");
-const { scanAndImportSubagents } = require("../../scripts/import-history");
+const {
+  scanAndImportSubagents,
+  findSessionSubagents,
+  combineSessionTokens,
+} = require("../../scripts/import-history");
 const { evaluateEvent } = require("../lib/alerts");
 const { ingestWorkflowsForSession } = require("../lib/workflow-ingest");
 // Required as a module object (not destructured) so tests can swap
@@ -27,6 +31,33 @@ const router = Router();
 
 // Shared cache instance — reused by periodic compaction scanner via router.transcriptCache
 const transcriptCache = new TranscriptCache();
+
+/**
+ * Add flat Claude subagent transcript usage to the main transcript totals.
+ *
+ * The hook path owns live token updates, including for sessions that never run
+ * the offline importer. Reading every file through the shared cache keeps this
+ * incremental after the first event. `findSessionSubagents` is deliberately
+ * non-recursive, so Workflow-tool inner agents remain in their separately
+ * tracked workflow buckets instead of being charged to the parent twice.
+ *
+ * A missing, partial, or concurrently removed subagent file is non-fatal. The
+ * main transcript still advances, and a later hook retries the subagent scan.
+ */
+function combineLiveSessionTokens(transcriptPath, mainTokensByModel) {
+  const parsedSubagents = [];
+  for (const subagentPath of findSessionSubagents(transcriptPath)) {
+    try {
+      const subagent = transcriptCache.extract(subagentPath);
+      if (subagent && subagent.tokensByModel) parsedSubagents.push(subagent);
+    } catch {
+      /* transient/partial subagent transcript — retry on the next hook */
+    }
+  }
+
+  if (parsedSubagents.length === 0) return mainTokensByModel;
+  return combineSessionTokens({ tokensByModel: mainTokensByModel, parsedSubagents });
+}
 
 // Stale-session threshold for the SessionStart cleanup pass. Mirrors the
 // periodic sweep in server/index.js so both code paths agree on what counts
@@ -907,8 +938,9 @@ const processEvent = db.transaction((hookType, data, origin = null) => {
   }
 
   // Extract token usage from transcript on every event that provides transcript_path.
-  // Claude Code hooks don't include usage/model in stdin — the transcript JSONL is
-  // the only reliable source. Uses replaceTokenUsage with compaction-aware logic:
+  // Claude Code hooks don't include usage/model in stdin — the main and flat
+  // subagent transcript JSONLs are the only reliable source. Uses
+  // replaceTokenUsage with compaction-aware logic:
   // when the JSONL total drops (compaction rewrote it), the old value rolls into
   // a baseline column so effective_total = current_jsonl + baseline. This ensures
   // tokens from before compaction are never lost.
@@ -1001,9 +1033,10 @@ const processEvent = db.transaction((hookType, data, origin = null) => {
       }
 
       if (tokensByModel) {
+        const liveTokensByModel = combineLiveSessionTokens(data.transcript_path, tokensByModel);
         // Each bucket carries its pricing dimensions (model/speed/geo/tier) plus
         // the 1h cache-write split and server-tool request counts.
-        for (const tokens of Object.values(tokensByModel)) {
+        for (const tokens of Object.values(liveTokensByModel)) {
           stmts.replaceTokenUsage.run(
             sessionId,
             tokens.model,
@@ -1392,9 +1425,10 @@ router.post("/event", (req, res) => {
   // never fire hooks on the parent session — this scan is the only path that
   // attributes them to the subagent's agent_id.
   if (hook_type === "SubagentStop" && data.session_id && data.transcript_path) {
-    // Models the MAIN transcript wrote. The subagent scan must SKIP these
-    // buckets — the main-transcript writer above owns them, and writing one
-    // from two sources of different magnitude would trip replaceTokenUsage's
+    // Models the live combined-transcript writer owns. The subagent scan must
+    // SKIP these buckets — the writer above already includes flat subagents,
+    // and writing one from two sources of different magnitude would trip
+    // replaceTokenUsage's
     // compaction baseline-shift and inflate the total. We pass ALL of them
     // (covers a mid-session /model switch, not just the latest). extract() is
     // stat-cached, so this re-read is a cache hit. The scan falls back to the
@@ -1403,7 +1437,11 @@ router.post("/event", (req, res) => {
     try {
       const mainResult = transcriptCache.extract(data.transcript_path);
       if (mainResult && mainResult.tokensByModel) {
-        parentTokenModels = Object.values(mainResult.tokensByModel)
+        const liveTokensByModel = combineLiveSessionTokens(
+          data.transcript_path,
+          mainResult.tokensByModel
+        );
+        parentTokenModels = Object.values(liveTokensByModel)
           .map((b) => b.model)
           .filter(Boolean);
       }
