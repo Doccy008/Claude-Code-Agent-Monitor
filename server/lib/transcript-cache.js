@@ -901,6 +901,17 @@ class TranscriptCache {
     return this._cache.size;
   }
 
+  /** Return the last successfully cached parse result without touching disk. */
+  getCachedResult(transcriptPath) {
+    return this._cache.get(transcriptPath)?.result || null;
+  }
+
+  /** Restore a known-complete result after a transient partial or failed read. */
+  restoreCachedResult(transcriptPath, result) {
+    const cached = this._cache.get(transcriptPath);
+    if (cached && result) cached.result = result;
+  }
+
   /** Remove a specific path from cache */
   invalidate(transcriptPath) {
     this._cache.delete(transcriptPath);

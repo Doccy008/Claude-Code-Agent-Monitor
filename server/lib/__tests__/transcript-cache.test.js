@@ -73,6 +73,23 @@ describe("TranscriptCache", () => {
     assert.strictEqual(r1, r2);
   });
 
+  it("should expose the last cached result without reading the file", () => {
+    const file = path.join(tmpDir, "session.jsonl");
+    writeJsonl(file, [
+      { message: { model: "m1", usage: { input_tokens: 100, output_tokens: 50 } } },
+    ]);
+    const cache = new TranscriptCache();
+    const parsed = cache.extract(file);
+
+    fs.unlinkSync(file);
+
+    assert.strictEqual(cache.getCachedResult(file), parsed);
+    assert.strictEqual(cache.getCachedResult(path.join(tmpDir, "unknown.jsonl")), null);
+
+    cache.restoreCachedResult(file, { ...parsed, latestModel: "restored" });
+    assert.strictEqual(cache.getCachedResult(file).latestModel, "restored");
+  });
+
   it("should detect new data when file grows", () => {
     const file = path.join(tmpDir, "session.jsonl");
     writeJsonl(file, [

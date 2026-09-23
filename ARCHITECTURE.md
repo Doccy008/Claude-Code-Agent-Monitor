@@ -1514,7 +1514,7 @@ instead of being skipped. It is deferred off the boot path so a large corpus
 never delays the UI, skipped (without consuming the marker) while
 `peersSharingDataDir()` reports another dashboard on the same database, and
 disabled entirely by `DASHBOARD_TOKEN_REPAIR=0`. Because the sweep clears and
-rewrites rows, it first copies the table to `token_usage_pre_repair` — one
+rewrites rows, it first copies the table to `token_usage_pre_repair_v2` — one
 snapshot kept so the pre-repair numbers stay recoverable with plain SQL; it is
 safe to drop.
 

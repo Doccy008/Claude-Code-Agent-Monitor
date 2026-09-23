@@ -332,7 +332,7 @@ function autoImportLegacySessions() {
  *   - deferred off the boot path so a large corpus never delays the UI.
  *
  * The sweep clears and rewrites non-workflow `token_usage` rows, so it first
- * copies the table to `token_usage_pre_repair` — one snapshot, kept so the
+ * copies the table to `token_usage_pre_repair_v2` — one snapshot, kept so the
  * pre-repair numbers stay recoverable with plain SQL. It is safe to drop.
  *
  * A hook that lands mid-repair can lose one write (the sweep parses outside its
@@ -366,14 +366,14 @@ function repairInflatedTokenTotals() {
       (async () => {
         try {
           dbModule.db.exec(
-            "CREATE TABLE IF NOT EXISTS token_usage_pre_repair AS SELECT * FROM token_usage"
+            "CREATE TABLE IF NOT EXISTS token_usage_pre_repair_v2 AS SELECT * FROM token_usage"
           );
           const { reconcileTokens } = require("../scripts/import-history");
           const result = await reconcileTokens(dbModule, { all: true, resetBaselines: true });
           if (result.sessionsTouched > 0) {
             console.log(
               `Repaired token totals for ${result.sessionsTouched} session(s) ` +
-                `(issues #293 and #345). Pre-repair values kept in token_usage_pre_repair.`
+                `(issues #293 and #345). Pre-repair values kept in token_usage_pre_repair_v2.`
             );
           }
           try {

@@ -47,11 +47,20 @@ const transcriptCache = new TranscriptCache();
 function combineLiveSessionTokens(transcriptPath, mainTokensByModel) {
   const parsedSubagents = [];
   for (const subagentPath of findSessionSubagents(transcriptPath)) {
+    const lastKnown = transcriptCache.getCachedResult(subagentPath);
     try {
       const subagent = transcriptCache.extract(subagentPath);
-      if (subagent && subagent.tokensByModel) parsedSubagents.push(subagent);
+      if (subagent && subagent.tokensByModel) {
+        parsedSubagents.push(subagent);
+      } else if (lastKnown && lastKnown.tokensByModel) {
+        transcriptCache.restoreCachedResult(subagentPath, lastKnown);
+        parsedSubagents.push(lastKnown);
+      }
     } catch {
-      /* transient/partial subagent transcript — retry on the next hook */
+      if (lastKnown && lastKnown.tokensByModel) {
+        transcriptCache.restoreCachedResult(subagentPath, lastKnown);
+        parsedSubagents.push(lastKnown);
+      }
     }
   }
 
@@ -950,7 +959,7 @@ const processEvent = db.transaction((hookType, data, origin = null) => {
   if (data.transcript_path) {
     const result = transcriptCache.extract(data.transcript_path);
     if (result) {
-      const { tokensByModel, compaction, latestModel } = result;
+      const { compaction, latestModel } = result;
 
       // Keep session.model in sync with the user's *current* model — the
       // transcript's most recent assistant entry is the source of truth, since
@@ -1029,29 +1038,6 @@ const processEvent = db.transaction((hookType, data, origin = null) => {
             summary: compactSummary,
             created_at: ts,
           });
-        }
-      }
-
-      if (tokensByModel) {
-        const liveTokensByModel = combineLiveSessionTokens(data.transcript_path, tokensByModel);
-        // Each bucket carries its pricing dimensions (model/speed/geo/tier) plus
-        // the 1h cache-write split and server-tool request counts.
-        for (const tokens of Object.values(liveTokensByModel)) {
-          stmts.replaceTokenUsage.run(
-            sessionId,
-            tokens.model,
-            tokens.speed,
-            tokens.geo,
-            tokens.tier,
-            tokens.input,
-            tokens.output,
-            tokens.cacheRead,
-            tokens.cacheWrite,
-            tokens.cacheWrite1h,
-            tokens.webSearch,
-            tokens.webFetch,
-            tokens.codeExec
-          );
         }
       }
 
@@ -1263,6 +1249,35 @@ const processEvent = db.transaction((hookType, data, origin = null) => {
         }
       }
     }
+
+    // Subagent transcripts can contain the session's only usage records, so
+    // reconcile them even when the main transcript is empty or has no parsed
+    // messages yet.
+    const liveTokensByModel = combineLiveSessionTokens(
+      data.transcript_path,
+      result?.tokensByModel || null
+    );
+    if (liveTokensByModel) {
+      // Each bucket carries its pricing dimensions (model/speed/geo/tier) plus
+      // the 1h cache-write split and server-tool request counts.
+      for (const tokens of Object.values(liveTokensByModel)) {
+        stmts.replaceTokenUsage.run(
+          sessionId,
+          tokens.model,
+          tokens.speed,
+          tokens.geo,
+          tokens.tier,
+          tokens.input,
+          tokens.output,
+          tokens.cacheRead,
+          tokens.cacheWrite,
+          tokens.cacheWrite1h,
+          tokens.webSearch,
+          tokens.webFetch,
+          tokens.codeExec
+        );
+      }
+    }
   }
 
   // Evict transcript from cache on SessionEnd — session is done, no more reads expected.
@@ -1436,16 +1451,16 @@ router.post("/event", (req, res) => {
     let parentTokenModels = [];
     try {
       const mainResult = transcriptCache.extract(data.transcript_path);
-      if (mainResult && mainResult.tokensByModel) {
-        const liveTokensByModel = combineLiveSessionTokens(
-          data.transcript_path,
-          mainResult.tokensByModel
-        );
+      const liveTokensByModel = combineLiveSessionTokens(
+        data.transcript_path,
+        mainResult?.tokensByModel || null
+      );
+      if (liveTokensByModel) {
         parentTokenModels = Object.values(liveTokensByModel)
           .map((b) => b.model)
           .filter(Boolean);
       }
-      if (mainResult && mainResult.latestModel) parentTokenModels.push(mainResult.latestModel);
+      if (mainResult?.latestModel) parentTokenModels.push(mainResult.latestModel);
     } catch {
       /* fall back to stored session.model inside the scan */
     }

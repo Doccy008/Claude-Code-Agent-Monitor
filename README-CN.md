@@ -747,7 +747,7 @@ ccam version                      # 打印 CLI 版本（也可用 --version / -v
 | `npm run import-history` | 从 `~/.claude/` 导入历史会话（启动时也会运行） |
 | `npm run reconcile-tokens` | 刷新已导入会话的 Token 总计（不会降低已有的总计） |
 | `npm run repair-tokens` | 为每个 Transcript 仍在磁盘上的 **Claude** 会话（在 `~/.claude/projects/` 中查找，或按会话已保存的 `transcript_path`）重新推导**非 workflow** 的 Token 总计，并将上下文压缩基线清零；workflow 与 Codex 行保持不变。这是针对 v2.0.9 之前按记录累加用量而虚高，或遗漏同模型扁平子 Agent 用量的数据库的一次性修复。请先停止 Dashboard |
-| `DASHBOARD_TOKEN_REPAIR` | `1`（启用） | 一次性自动修复受按记录虚高或遗漏同模型扁平子 Agent 影响的历史 Token 总计。实时修复无法重新处理所有已完成会话，而 `replaceTokenUsage` 也无法降低旧的高水位标记。每个数据库只运行一次（有标记文件、延后于启动路径、当另一个 Dashboard 共用数据目录时跳过），并会先将旧行快照到 `token_usage_pre_repair`。设为 `0` 可跳过，改用 `npm run repair-tokens` 手动修复 |
+| `DASHBOARD_TOKEN_REPAIR` | 默认启用（`1`）。一次性自动修复受按记录虚高或遗漏同模型扁平子 Agent 影响的历史 Token 总计。实时修复无法重新处理所有已完成会话，而 `replaceTokenUsage` 也无法降低旧的高水位标记。每个数据库只运行一次（有标记文件、延后于启动路径、当另一个 Dashboard 共用数据目录时跳过），并会先将旧行快照到 `token_usage_pre_repair_v2`。设为 `0` 可跳过，改用 `npm run repair-tokens` 手动修复 |
 | `npm run clear-data` | 删除所有会话、Agent、事件和 Token 用量 |
 | `npm run mcp:install` | 安装本地 MCP 包（`mcp/`）的依赖 |
 | `npm run mcp:build` | 构建 MCP 服务器 TypeScript 到 `mcp/build/` |

@@ -2123,6 +2123,23 @@ describe("Hook Event Processing", () => {
       assert.equal(bucket.input_tokens, 150, "main and flat same-model subagent are combined");
       assert.equal(bucket.output_tokens, 15);
 
+      fs.writeFileSync(subagentPath, "");
+      for (let attempt = 0; attempt < 2; attempt++) {
+        res = await post("/api/hooks/event", {
+          hook_type: "PostToolUse",
+          data: { session_id: sid, tool_name: "Read", transcript_path: transcriptPath },
+        });
+        assert.equal(res.status, 200);
+      }
+      const stable = db
+        .prepare(
+          `SELECT input_tokens, baseline_input FROM token_usage
+           WHERE session_id = ? AND model = ?`
+        )
+        .get(sid, "claude-sonnet-4-6");
+      assert.equal(stable.input_tokens, 150, "a transient null read keeps the last full total");
+      assert.equal(stable.baseline_input, 0, "a transient null read must not shift the baseline");
+
       fs.appendFileSync(subagentPath, usageLine("sub-2", 25, 3) + "\n");
       res = await post("/api/hooks/event", {
         hook_type: "PostToolUse",
@@ -2134,6 +2151,40 @@ describe("Hook Event Processing", () => {
       bucket = cost.body.breakdown.find((row) => row.model === "claude-sonnet-4-6");
       assert.equal(bucket.input_tokens, 175, "later hooks pick up subagent transcript growth");
       assert.equal(bucket.output_tokens, 18);
+    } finally {
+      fs.rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("should write subagent usage when the main transcript has no token records", async () => {
+    const sid = `hook-subagent-only-${Date.now()}`;
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-subagent-only-"));
+    const transcriptPath = path.join(projectDir, `${sid}.jsonl`);
+    const subagentDir = path.join(projectDir, sid, "subagents");
+    fs.mkdirSync(subagentDir, { recursive: true });
+    fs.writeFileSync(transcriptPath, "");
+    fs.writeFileSync(
+      path.join(subagentDir, "agent-only.jsonl"),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          id: "sub-only-1",
+          model: "claude-haiku-4-5-20251001",
+          usage: { input_tokens: 80, output_tokens: 8 },
+        },
+      }) + "\n"
+    );
+
+    try {
+      const res = await post("/api/hooks/event", {
+        hook_type: "PreToolUse",
+        data: { session_id: sid, tool_name: "Read", transcript_path: transcriptPath },
+      });
+      assert.equal(res.status, 200);
+      const cost = await fetch(`/api/pricing/cost/${sid}`);
+      const bucket = cost.body.breakdown.find((row) => row.model === "claude-haiku-4-5-20251001");
+      assert.equal(bucket.input_tokens, 80);
+      assert.equal(bucket.output_tokens, 8);
     } finally {
       fs.rmSync(projectDir, { recursive: true, force: true });
     }

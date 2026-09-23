@@ -167,6 +167,7 @@ describe("startup token repair", () => {
     clearMarker();
     try {
       db.exec("DROP TABLE IF EXISTS token_usage_pre_repair");
+      db.exec("DROP TABLE IF EXISTS token_usage_pre_repair_v2");
     } catch {
       /* absent */
     }
@@ -203,13 +204,25 @@ describe("startup token repair", () => {
   it("snapshots the pre-repair rows so the old numbers stay recoverable", async () => {
     const SID = "repair-auto-2";
     seedSession(SID);
+    db.exec("DROP TABLE IF EXISTS token_usage_pre_repair");
+    db.exec("CREATE TABLE token_usage_pre_repair AS SELECT * FROM token_usage");
+    db.prepare(
+      "UPDATE token_usage_pre_repair SET cache_read_tokens = 123 WHERE session_id = ?"
+    ).run(SID);
     await runRepairNow();
 
     const snapshot = db
-      .prepare("SELECT cache_read_tokens FROM token_usage_pre_repair WHERE session_id = ?")
+      .prepare("SELECT cache_read_tokens FROM token_usage_pre_repair_v2 WHERE session_id = ?")
       .get(SID);
     assert.ok(snapshot, "a pre-repair snapshot row must exist");
     assert.equal(snapshot.cache_read_tokens, CORRECT.cacheRead * 3, "snapshot keeps the old value");
+    assert.equal(
+      db
+        .prepare("SELECT cache_read_tokens FROM token_usage_pre_repair WHERE session_id = ?")
+        .get(SID).cache_read_tokens,
+      123,
+      "the v2 pass must not overwrite the snapshot created by v1"
+    );
   });
 
   it("writes a marker and does not run again", async () => {
