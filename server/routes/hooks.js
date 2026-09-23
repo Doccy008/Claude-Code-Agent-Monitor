@@ -47,19 +47,19 @@ const transcriptCache = new TranscriptCache();
 function combineLiveSessionTokens(transcriptPath, mainTokensByModel) {
   const parsedSubagents = [];
   for (const subagentPath of findSessionSubagents(transcriptPath)) {
-    const lastKnown = transcriptCache.getCachedResult(subagentPath);
+    const lastKnown = transcriptCache.getCachedEntry(subagentPath);
     try {
       const subagent = transcriptCache.extract(subagentPath);
       if (subagent && subagent.tokensByModel) {
         parsedSubagents.push(subagent);
-      } else if (lastKnown && lastKnown.tokensByModel) {
-        transcriptCache.restoreCachedResult(subagentPath, lastKnown);
-        parsedSubagents.push(lastKnown);
+      } else if (lastKnown?.result?.tokensByModel) {
+        transcriptCache.restoreCachedEntry(subagentPath, lastKnown);
+        parsedSubagents.push(lastKnown.result);
       }
     } catch {
-      if (lastKnown && lastKnown.tokensByModel) {
-        transcriptCache.restoreCachedResult(subagentPath, lastKnown);
-        parsedSubagents.push(lastKnown);
+      if (lastKnown?.result?.tokensByModel) {
+        transcriptCache.restoreCachedEntry(subagentPath, lastKnown);
+        parsedSubagents.push(lastKnown.result);
       }
     }
   }

@@ -901,15 +901,15 @@ class TranscriptCache {
     return this._cache.size;
   }
 
-  /** Return the last successfully cached parse result without touching disk. */
-  getCachedResult(transcriptPath) {
-    return this._cache.get(transcriptPath)?.result || null;
+  /** Snapshot a cache entry so a transient rewrite can be rolled back safely. */
+  getCachedEntry(transcriptPath) {
+    const cached = this._cache.get(transcriptPath);
+    return cached ? { ...cached } : null;
   }
 
-  /** Restore a known-complete result after a transient partial or failed read. */
-  restoreCachedResult(transcriptPath, result) {
-    const cached = this._cache.get(transcriptPath);
-    if (cached && result) cached.result = result;
+  /** Restore both a parse result and its byte cursor after a transient rewrite. */
+  restoreCachedEntry(transcriptPath, entry) {
+    if (entry) this._set(transcriptPath, entry);
   }
 
   /** Remove a specific path from cache */

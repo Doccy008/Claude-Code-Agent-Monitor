@@ -2140,7 +2140,10 @@ describe("Hook Event Processing", () => {
       assert.equal(stable.input_tokens, 150, "a transient null read keeps the last full total");
       assert.equal(stable.baseline_input, 0, "a transient null read must not shift the baseline");
 
-      fs.appendFileSync(subagentPath, usageLine("sub-2", 25, 3) + "\n");
+      fs.writeFileSync(
+        subagentPath,
+        usageLine("sub-1", 50, 5) + "\n" + usageLine("sub-2", 25, 3) + "\n"
+      );
       res = await post("/api/hooks/event", {
         hook_type: "PostToolUse",
         data: { session_id: sid, tool_name: "Read", transcript_path: transcriptPath },
