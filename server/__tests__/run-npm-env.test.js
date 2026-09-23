@@ -43,63 +43,40 @@ describe("sanitizeNpmEnv", () => {
 });
 
 describe("run-npm.js CLI wrapper", () => {
-  // A stub npm writes what it saw (argv + the two npm_config_* sentinels) to a
-  // file; the wrapper must spawn this stub (PATH-prepended) and strip only the
-  // allow-scripts sentinel. Cross-platform: sh script on POSIX, .cmd batch on
-  // Windows, matching the wrapper's own platform-specific command name.
-  function runStubNpm() {
+  // A JavaScript npm stub writes exactly what it saw (argv + the two
+  // npm_config_* sentinels) to a JSON file. Pointing npm_execpath at it mirrors
+  // npm's lifecycle contract and works identically on every platform.
+  function runStubNpm(args = ["--prefix", "stubdir", "ci"]) {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ccam-run-npm-"));
     const out = path.join(tmp, "npm-seen.txt");
-    const isWin = process.platform === "win32";
-    if (isWin) {
-      fs.writeFileSync(
-        path.join(tmp, "npm.cmd"),
-        [
-          "@echo off",
-          "(echo args=%*",
-          "echo allow=[%npm_config_allow_scripts%]",
-          'echo registry=[%npm_config_registry%]) > "%TEST_OUTPUT_FILE%"',
-          "",
-        ].join("\r\n")
-      );
-    } else {
-      const stub = path.join(tmp, "npm");
-      fs.writeFileSync(
-        stub,
-        [
-          "#!/bin/sh",
-          '{ printf "args=%s\\n" "$*";',
-          ' printf "allow=[%s]\\n" "$npm_config_allow_scripts";',
-          ' printf "registry=[%s]\\n" "$npm_config_registry"; } > "$TEST_OUTPUT_FILE"',
-          "",
-        ].join("\n")
-      );
-      fs.chmodSync(stub, 0o755);
-    }
-    const result = spawnSync(process.execPath, [RUN_NPM, "--prefix", "stubdir", "ci"], {
+    const stub = path.join(tmp, "npm-stub.js");
+    fs.writeFileSync(
+      stub,
+      'require("node:fs").writeFileSync(process.env.TEST_OUTPUT_FILE, JSON.stringify({ args: process.argv.slice(2), allow: process.env.npm_config_allow_scripts, registry: process.env.npm_config_registry }));\n'
+    );
+    const result = spawnSync(process.execPath, [RUN_NPM, ...args], {
       env: {
         ...process.env,
-        PATH: `${tmp}${path.delimiter}${process.env.PATH}`,
+        npm_execpath: stub,
         npm_config_allow_scripts: "sentinel-must-not-leak",
         npm_config_registry: "sentinel-registry",
         TEST_OUTPUT_FILE: out,
       },
     });
     assert.equal(result.status, 0, `wrapper exited ${result.status}: ${result.stderr}`);
-    return fs.readFileSync(out, "utf8");
+    return JSON.parse(fs.readFileSync(out, "utf8"));
   }
 
   it("does not leak npm_config_allow_scripts to the spawned npm", () => {
     const seen = runStubNpm();
-    const allowLine = seen.split(/\r?\n/).find((l) => l.startsWith("allow=["));
-    assert.ok(allowLine, `no allow line recorded in: ${seen}`);
-    assert.ok(!allowLine.includes("sentinel-must-not-leak"), `sentinel leaked: ${allowLine}`);
+    assert.equal(seen.allow, undefined);
   });
 
   it("preserves other npm_config_* values and forwards argv verbatim", () => {
-    const seen = runStubNpm();
-    assert.match(seen, /registry=\[sentinel-registry\]/);
-    assert.match(seen, /args=--prefix stubdir ci/);
+    const expectedArgs = ["--prefix", "directory with spaces", "ci"];
+    const seen = runStubNpm(expectedArgs);
+    assert.equal(seen.registry, "sentinel-registry");
+    assert.deepEqual(seen.args, expectedArgs);
   });
 });
 
@@ -124,6 +101,6 @@ describe("package.json install paths", () => {
   it("postinstall uses the shared sanitizer instead of a duplicate", () => {
     const src = fs.readFileSync(path.join(ROOT, "scripts", "postinstall.js"), "utf8");
     assert.match(src, /require\("\.\/run-npm\.js"\)/);
-    assert.match(src, /env: sanitizeNpmEnv\(process\.env\)/);
+    assert.match(src, /runNpm\(\["install"\], process\.env/);
   });
 });

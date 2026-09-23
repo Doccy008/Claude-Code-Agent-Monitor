@@ -12,10 +12,9 @@
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
-const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const { sanitizeNpmEnv } = require("./run-npm.js");
+const { runNpm } = require("./run-npm.js");
 
 const clientDir = path.join(__dirname, "..", "client");
 const clientManifest = path.join(clientDir, "package.json");
@@ -36,14 +35,8 @@ console.log("[postinstall] installing client dependencies (client/)...");
 // with the shared helper (see scripts/run-npm.js) — the child still reads the
 // user's and project `.npmrc` files directly, so intended behavior is unchanged.
 
-// `shell: true` is required on Windows so npm's `.cmd` shim resolves (Node
-// rejects spawning `.cmd`/`.bat` directly since 18.20 / CVE-2024-27980); the
-// fixed arg list has no shell-significant characters, so this stays safe.
-const result = spawnSync("npm", ["install"], {
+const result = runNpm(["install"], process.env, {
   cwd: clientDir,
-  stdio: "inherit",
-  shell: true,
-  env: sanitizeNpmEnv(process.env),
 });
 
 if (result.error) {

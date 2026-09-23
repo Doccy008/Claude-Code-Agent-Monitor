@@ -8,10 +8,11 @@
  * `EALLOWSCRIPTS`. `sanitizeNpmEnv` drops only those inherited keys; because npm
  * always re-reads the user/project `.npmrc` directly, the child keeps the exact
  * same allow-scripts policy from the only source that accepts it, so this is
- * behavior-preserving for user configuration. When invoked directly as a CLI it
- * spawns npm with a sanitized environment, forwarding all args verbatim (e.g.
- * `node scripts/run-npm.js --prefix client ci`). Used by the lifecycle `setup`
- * / `mcp:install` scripts and by scripts/postinstall.js.
+ * behavior-preserving for user configuration. When invoked from an npm
+ * lifecycle script it reuses npm's own `npm_execpath` with the current Node
+ * executable, forwarding all args verbatim without a shell (e.g. `node
+ * scripts/run-npm.js --prefix client ci`). Used by the lifecycle `setup` /
+ * `mcp:install` scripts and by scripts/postinstall.js.
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
@@ -33,28 +34,39 @@ function sanitizeNpmEnv(env) {
 }
 
 /**
- * Spawn the npm CLI with `args` under a sanitized environment, inheriting stdio
- * and this process's cwd. `shell: true` is required on Windows so npm's `.cmd`
- * shim resolves (Node rejects spawning `.cmd`/`.bat` directly since 18.20 /
- * CVE-2024-27980); the caller supplies a fixed arg list with no shell-
- * significant characters, so this stays safe.
+ * Spawn the same npm CLI that started the current lifecycle with `args` under a
+ * sanitized environment. Invoking its JavaScript entry point through Node
+ * avoids both Windows `.cmd` handling and shell argument re-parsing, while
+ * remaining available during the initial install before dependencies exist.
  * @param {string[]} args npm argv, e.g. ["--prefix","mcp","ci"]
  * @param {Record<string,string>} baseEnv env to sanitize (usually process.env)
+ * @param {import("node:child_process").SpawnSyncOptions} [options] spawn options
  * @returns {ReturnType<typeof spawnSync>}
  */
-function runNpm(args, baseEnv) {
-  const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
-  return spawnSync(npmCmd, args, {
+function runNpm(args, baseEnv, options = {}) {
+  const env = baseEnv || process.env;
+  const npmExecPath = env.npm_execpath;
+  if (!npmExecPath) {
+    throw new Error("npm_execpath is unavailable; run this command through an npm lifecycle");
+  }
+  return spawnSync(process.execPath, [npmExecPath, ...args], {
+    ...options,
     stdio: "inherit",
-    shell: true,
-    env: sanitizeNpmEnv(baseEnv || process.env),
+    shell: false,
+    env: sanitizeNpmEnv(env),
   });
 }
 
 // When run directly (`node scripts/run-npm.js <npm args…>`), forward the
 // remaining argv to npm under a sanitized env and mirror its exit status.
 if (require.main === module) {
-  const result = runNpm(process.argv.slice(2), process.env);
+  let result;
+  try {
+    result = runNpm(process.argv.slice(2), process.env);
+  } catch (error) {
+    console.error("[run-npm] failed to launch npm:", error.message);
+    process.exit(1);
+  }
   if (result.error) {
     console.error("[run-npm] failed to launch npm:", result.error.message);
     process.exit(1);
