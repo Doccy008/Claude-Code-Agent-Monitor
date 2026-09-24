@@ -115,4 +115,13 @@ describe("Docker server dependency stage", () => {
       /COPY scripts\/postinstall\.js scripts\/run-npm\.js \.\/scripts\//
     );
   });
+
+  it("copies the postinstall npm helper into both MCP install stages", () => {
+    const dockerfile = fs.readFileSync(path.join(ROOT, "mcp", "Dockerfile"), "utf8");
+    const lifecycleCopies = dockerfile.match(
+      /COPY scripts\/postinstall\.js scripts\/run-npm\.js \.\/scripts\//g
+    );
+
+    assert.equal(lifecycleCopies?.length, 2);
+  });
 });
