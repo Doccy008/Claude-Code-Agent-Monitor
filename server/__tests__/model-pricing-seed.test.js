@@ -73,6 +73,7 @@ describe("model_pricing seed — models that had no rule or a stale rate", () =>
     ["claude-mythos-5-1%", 10, 50, 0.25, 12.5, 20],
     ["claude-fable-5%", 10, 50, 1, 12.5, 20],
     ["claude-mythos-5%", 10, 50, 1, 12.5, 20],
+    ["claude-opus-5-5%", 4, 20, 0.2, 5, 8],
     ["claude-opus-5%", 5, 25, 0.5, 6.25, 10],
     ["claude-opus-4-5%", 5, 25, 0.5, 6.25, 10],
     ["claude-sonnet-5%", 2, 10, 0.2, 2.5, 4],
@@ -137,6 +138,8 @@ describe("model_pricing seed — models that had no rule or a stale rate", () =>
       ["claude-mythos-5", "claude-mythos-5%", 1],
       ["claude-opus-5", "claude-opus-5%", 0.5],
       ["claude-opus-5[1m]", "claude-opus-5%", 0.5],
+      ["claude-opus-5-5", "claude-opus-5-5%", 0.2],
+      ["claude-opus-5-5[1m]", "claude-opus-5-5%", 0.2],
     ]) {
       const row = stmts.matchPricing.get(model);
       assert.ok(row, `${model} must match a pricing rule`);
@@ -153,6 +156,7 @@ describe("model_pricing seed — models that had no rule or a stale rate", () =>
       "claude-mythos-5-1",
       "claude-fable-5",
       "claude-mythos-5",
+      "claude-opus-5-5",
       "claude-opus-5",
       "claude-opus-4-8",
       "claude-opus-4-7",
@@ -234,6 +238,15 @@ describe("historical usage reprices from the corrected rules", () => {
     assert.equal(costOf("claude-fable-5-1"), 60.25);
     // sonnet-5:  2 + 10 + 0.20 = 12.20  (was 18.30 at the stale $3/$15)
     assert.equal(costOf("claude-sonnet-5"), 12.2);
+  });
+
+  it("prices Opus 5.5 by its own rule, not the Opus 5 rule it also LIKE-matches", () => {
+    const rules = db.prepare("SELECT * FROM model_pricing").all();
+    const result = calculateCost([bucket("claude-opus-5-5")], rules, null);
+
+    assert.deepEqual(result.unpriced_models ?? [], []);
+    // opus-5.5: 4 + 20 + 0.20 = 24.20  (30.50 at the Opus 5 rule it would otherwise inherit)
+    assert.equal(result.breakdown.find((b) => b.model === "claude-opus-5-5").cost, 24.2);
   });
 });
 
