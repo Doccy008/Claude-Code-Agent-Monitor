@@ -73,6 +73,28 @@ describe("TranscriptCache", () => {
     assert.strictEqual(r1, r2);
   });
 
+  it("should restore the cached byte cursor with its last complete result", () => {
+    const file = path.join(tmpDir, "session.jsonl");
+    const first = { message: { id: "first", model: "m1", usage: { input_tokens: 100 } } };
+    const second = { message: { id: "second", model: "m1", usage: { input_tokens: 25 } } };
+    writeJsonl(file, [first]);
+    const cache = new TranscriptCache();
+    const parsed = cache.extract(file);
+    const cached = cache.getCachedEntry(file);
+
+    fs.writeFileSync(file, "");
+    assert.strictEqual(cache.extract(file), null);
+    cache.restoreCachedEntry(file, cached);
+
+    writeJsonl(file, [first, second]);
+    const regrown = cache.extract(file);
+    const tokens = Object.values(regrown.tokensByModel)[0];
+
+    assert.equal(tokens.input, 125, "the original record must not be counted twice");
+    assert.strictEqual(cache.getCachedEntry(path.join(tmpDir, "unknown.jsonl")), null);
+    assert.strictEqual(cached.result, parsed);
+  });
+
   it("should detect new data when file grows", () => {
     const file = path.join(tmpDir, "session.jsonl");
     writeJsonl(file, [

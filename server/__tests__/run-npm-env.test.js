@@ -104,3 +104,24 @@ describe("package.json install paths", () => {
     assert.match(src, /runNpm\(\["install"\], process\.env/);
   });
 });
+
+describe("Docker server dependency stage", () => {
+  it("copies the postinstall npm helper before npm ci runs", () => {
+    const dockerfile = fs.readFileSync(path.join(ROOT, "Dockerfile"), "utf8");
+    const dependencyStage = dockerfile.slice(0, dockerfile.indexOf("# ── Stage 2"));
+
+    assert.match(
+      dependencyStage,
+      /COPY scripts\/postinstall\.js scripts\/run-npm\.js \.\/scripts\//
+    );
+  });
+
+  it("copies the postinstall npm helper into both MCP install stages", () => {
+    const dockerfile = fs.readFileSync(path.join(ROOT, "mcp", "Dockerfile"), "utf8");
+    const lifecycleCopies = dockerfile.match(
+      /COPY scripts\/postinstall\.js scripts\/run-npm\.js \.\/scripts\//g
+    );
+
+    assert.equal(lifecycleCopies?.length, 2);
+  });
+});

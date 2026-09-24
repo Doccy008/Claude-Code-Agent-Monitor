@@ -16,6 +16,7 @@ from pathlib import Path
 
 AUTHOR = "@author Son Nguyen <hoangson091104@gmail.com>"
 MARKER = "MODULE_GUIDE"
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 EXPORT_RE = re.compile(
     r"^export\s+(?:async\s+)?(?:function|const|class|type|interface|enum)\s+(\w+)",
@@ -28,6 +29,7 @@ IMPORT_RE = re.compile(
 
 
 def topic_blurb(path: Path) -> str:
+    path = path.resolve().relative_to(REPO_ROOT)
     rel = path.as_posix()
     name = path.stem
     hints: list[str] = []
@@ -63,7 +65,17 @@ def topic_blurb(path: Path) -> str:
             "Electron main/preload process code for the packaged desktop app — embeds the "
             "Express server, manages tray/window lifecycle, and writes discovery metadata."
         )
-    if "workflow" in rel.lower():
+    if rel.endswith("mcp/src/tools/domains/webhook-tools.ts"):
+        hints.append(
+            "Registers MCP webhook tools for provider discovery, redacted target "
+            "management, test delivery, and delivery-log inspection."
+        )
+    if rel.endswith("mcp/src/tools/domains/workflow-tools.ts"):
+        hints.append(
+            "Registers MCP workflow tools for aggregate analytics, session drill-down, "
+            "fleet-run listings, and individual run inspection."
+        )
+    if "workflow" in rel.lower() and path.parts[0:3] == ("client", "src", "components"):
         hints.append(
             "Workflow analytics visualization built on D3; consumes aggregated session/run "
             "metrics from the workflows API."
@@ -78,7 +90,7 @@ def topic_blurb(path: Path) -> str:
             "Tabby is the optional on-screen cat assistant — quips, intents, and lightweight "
             "event reactions layered above the dashboard chrome."
         )
-    if "hook" in rel.lower() or name.startswith("use"):
+    if path.parts[0:3] == ("client", "src", "hooks") or name.startswith("use"):
         hints.append(
             "React hook: isolates side effects and subscription wiring so presentational "
             "components stay declarative."
@@ -121,7 +133,7 @@ def list_imports(source: str) -> list[str]:
 def build_guide(path: Path, source: str) -> str:
     exports = list_exports(source)
     imports = list_imports(source)
-    rel = path.as_posix()
+    rel = path.resolve().relative_to(REPO_ROOT).as_posix()
     blurb = topic_blurb(path)
 
     lines = [
@@ -229,7 +241,7 @@ def main(argv: list[str]) -> int:
         print("Usage: expand-ts-module-docs.py <glob-root> [...]", file=sys.stderr)
         return 1
 
-    root = Path(__file__).resolve().parents[1]
+    root = REPO_ROOT
     changed = 0
     for arg in argv[1:]:
         for path in sorted(root.glob(arg)):
