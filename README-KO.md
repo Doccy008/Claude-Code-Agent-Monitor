@@ -757,8 +757,8 @@ API 기반 명령어는 서버가 실행 중이어야 합니다 — 서버가 �
 | `npm run seed`          | 샘플 데이터로 데이터베이스를 채웁니다                           |
 | `npm run import-history`| `~/.claude/`에서 레거시 세션을 가져옵니다 (시작 시에도 실행됨) |
 | `npm run reconcile-tokens`| 가져온 세션의 토큰 합계를 새로 계산합니다 (기존 합계를 낮추지는 않습니다) |
-| `npm run repair-tokens` | 트랜스크립트가 디스크에 남아 있는 모든 **Claude** 세션(`~/.claude/projects/` 또는 세션에 저장된 `transcript_path` 로 탐색)의 **workflow 가 아닌** 토큰 합계를 다시 도출하고 컨텍스트 압축 baseline 을 0으로 만듭니다. workflow 및 Codex 행은 그대로 유지됩니다. v2.0.9 이전의 레코드 단위 usage 합산으로 부풀려진 데이터베이스를 위한 일회성 복구입니다. 먼저 대시보드를 중지하세요 |
-| `DASHBOARD_TOKEN_REPAIR` | `1`(활성) | usage 가 `message.id` 단위로 조정되기 전에 부풀려진 토큰 합계를 일회성으로 자동 복구합니다. `replaceTokenUsage` 는 high-water mark 이므로 파서 수정만으로는 과거 합계를 낮출 수 없습니다 — 이 단계가 없으면 업그레이드 이전의 모든 세션이 잘못된 비용을 영구히 유지합니다. 데이터베이스당 한 번만 실행되며(마커 기반, 부팅 경로에서 지연, 다른 대시보드가 같은 데이터 디렉터리를 공유하면 건너뜀), 먼저 기존 행을 `token_usage_pre_repair` 로 스냅숏합니다. `0` 으로 설정하면 건너뛰고 `npm run repair-tokens` 로 직접 복구합니다 |
+| `npm run repair-tokens` | 트랜스크립트가 디스크에 남아 있는 모든 **Claude** 세션(`~/.claude/projects/` 또는 세션에 저장된 `transcript_path` 로 탐색)의 **workflow 가 아닌** 토큰 합계를 다시 도출하고 컨텍스트 압축 baseline 을 0으로 만듭니다. workflow 및 Codex 행은 그대로 유지됩니다. v2.0.9 이전의 레코드 단위 usage 합산 또는 누락된 동일 모델의 평면 서브에이전트 usage 영향을 받은 데이터베이스를 위한 일회성 복구입니다. 먼저 대시보드를 중지하세요 |
+| `DASHBOARD_TOKEN_REPAIR` | 기본적으로 활성화됩니다(`1`). 레코드 단위 부풀림 또는 누락된 동일 모델의 평면 서브에이전트로 영향을 받은 과거 Token 합계를 일회성으로 자동 복구합니다. 실시간 수정은 완료된 모든 세션을 다시 처리할 수 없고 `replaceTokenUsage` 는 기존 high-water mark 를 낮출 수 없습니다. 데이터베이스당 한 번만 실행되며(마커 기반, 부팅 경로에서 지연, 다른 대시보드가 같은 데이터 디렉터리를 공유하면 건너뜀), 먼저 기존 행을 `token_usage_pre_repair_v2` 로 스냅숏합니다. `0` 으로 설정하면 건너뛰고 `npm run repair-tokens` 로 직접 복구합니다 |
 | `npm run clear-data`    | 모든 세션, 에이전트, 이벤트, 토큰 사용량을 삭제합니다            |
 | `npm run mcp:install`   | 로컬 MCP 패키지(`mcp/`)의 의존성을 설치합니다       |
 | `npm run mcp:build`     | MCP 서버 TypeScript를 `mcp/build/`로 빌드합니다             |

@@ -2768,17 +2768,16 @@ async function scanAndImportSubagents(dbModule, sessionId, transcriptPath, opts 
   // A Haiku QA agent under an Opus orchestrator must keep its own (cheaper)
   // token bucket instead of being priced at the orchestrator's rate.
   //
-  // We deliberately SKIP any bucket whose model the MAIN transcript also wrote.
-  // Those buckets are owned by the main-transcript writer in
-  // server/routes/hooks.js; writing one from two sources with different
-  // magnitudes would trip replaceTokenUsage's compaction baseline-shift
+  // We deliberately SKIP any bucket whose model the authoritative live writer
+  // already wrote. server/routes/hooks.js passes the model set from its main +
+  // flat-subagent combination; writing one again from a different scope would
+  // trip replaceTokenUsage's compaction baseline-shift
   // (excluded < stored ⇒ baseline += stored) and inflate the total. The caller
-  // passes opts.parentModels (every model the main transcript used — covers a
-  // mid-session /model switch, not just the latest); we also fold in the stored
-  // session.model as a fallback. Same-model subagents are reconciled by the
-  // authoritative importSession/reconcileTokens path instead. Subagent JSONLs
-  // are append-only, so the combined per-model sum only grows between
-  // SubagentStop sweeps — never a spurious drop.
+  // passes opts.parentModels; we also fold in the stored session.model as a
+  // fallback for older callers. The scanner still stamps each agent's own
+  // metadata.tokens before this session-level write filter. Subagent JSONLs are
+  // append-only, so any remaining per-model sum only grows between SubagentStop
+  // sweeps — never a spurious drop.
   if (parsedSubagents.length > 0) {
     try {
       const parentModels = new Set();

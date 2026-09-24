@@ -901,6 +901,17 @@ class TranscriptCache {
     return this._cache.size;
   }
 
+  /** Snapshot a cache entry so a transient rewrite can be rolled back safely. */
+  getCachedEntry(transcriptPath) {
+    const cached = this._cache.get(transcriptPath);
+    return cached ? { ...cached } : null;
+  }
+
+  /** Restore both a parse result and its byte cursor after a transient rewrite. */
+  restoreCachedEntry(transcriptPath, entry) {
+    if (entry) this._set(transcriptPath, entry);
+  }
+
   /** Remove a specific path from cache */
   invalidate(transcriptPath) {
     this._cache.delete(transcriptPath);

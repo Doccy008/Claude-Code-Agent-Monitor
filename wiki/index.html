@@ -126,7 +126,7 @@
             "applicationCategory": "DeveloperApplication",
             "applicationSubCategory": "Monitoring and observability",
             "operatingSystem": "macOS, Windows, Linux",
-            "softwareVersion": "2.2.2",
+            "softwareVersion": "2.2.3",
             "license": "https://opensource.org/licenses/MIT",
             "isAccessibleForFree": true,
             "image": "https://hoangsonww.github.io/Claude-Code-Agent-Monitor/og-image.png",
@@ -2176,7 +2176,7 @@ npm run mcp:start:repl         # interactive CLI with tab completion</code></pre
                 <tr>
                   <td><code>DASHBOARD_TOKEN_REPAIR</code></td>
                   <td><code>1</code></td>
-                  <td>One-time automatic repair of token totals inflated before usage was reconciled per <code>message.id</code>. <code>replaceTokenUsage</code> is a high-water mark, so the parser fix alone can never lower a historical total. Marker-gated, deferred off the boot path, skipped while another dashboard shares the data directory, and it snapshots the old rows to <code>token_usage_pre_repair</code> first. <code>0</code> skips it — repair manually with <code>npm run repair-tokens</code>.</td>
+                  <td>One-time automatic repair of historical token totals affected by per-record inflation or omitted same-model flat subagents. Live fixes cannot revisit every completed session, and <code>replaceTokenUsage</code> cannot lower an old high-water mark. Marker-gated, deferred off the boot path, skipped while another dashboard shares the data directory, and it snapshots the old rows to <code>token_usage_pre_repair_v2</code> first. <code>0</code> skips it — repair manually with <code>npm run repair-tokens</code>.</td>
                 </tr>
                 <tr>
                   <td><code>NODE_ENV</code></td>
@@ -7224,7 +7224,7 @@ npm run install-hooks</code></pre>
     <!-- Body-content translations — must load before script.js so the
          i18n engine sees window.__WIKI_CONTENT_I18N. Both are deferred, so they
          run in document order. -->
-    <script src="i18n-content.js?v=99" defer></script>
+    <script src="i18n-content.js?v=102" defer></script>
     <script src="script.js?v=59" defer></script>
     <script>
       (function () {

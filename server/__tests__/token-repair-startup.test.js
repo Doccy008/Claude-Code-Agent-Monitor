@@ -1,13 +1,12 @@
 /**
- * @file Tests the one-time startup repair of token totals inflated before
- * usage was reconciled per `message.id` (issue #293).
+ * @file Tests the one-time startup repair of token totals affected by old
+ * per-record inflation or omitted same-model subagents (issues #293 and #345).
  *
- * The parser fix alone cannot heal historical rows: `replaceTokenUsage` is a
- * monotonic high-water mark, so a corrected (lower) re-read migrates the
- * over-count into `baseline_*` and the effective number never drops. Without
- * this startup pass every session that predates the upgrade keeps its inflated
- * cost forever while new sessions price correctly — so the repair has to run
- * for the user rather than waiting for them to find a CLI flag.
+ * Live fixes alone cannot heal historical rows: `replaceTokenUsage` is a
+ * monotonic high-water mark, so a corrected lower re-read migrates an
+ * over-count into `baseline_*`, while a completed session missing subagent
+ * usage may never emit another hook. The repair therefore runs for the user
+ * rather than waiting for them to find a CLI flag.
  *
  * Covers the guards that keep an automatic, row-rewriting migration safe:
  * marker gating (runs once, retries after a crash), the `DASHBOARD_TOKEN_REPAIR=0`
@@ -34,7 +33,7 @@ const dbModule = require("../db");
 const { db, stmts } = dbModule;
 const { repairInflatedTokenTotals } = require("../index");
 
-const MARKER = path.join(path.dirname(dbModule.DB_PATH), ".token-repair-v1.done");
+const MARKER = path.join(path.dirname(dbModule.DB_PATH), ".token-repair-v2.done");
 const MODEL = "claude-opus-4-8";
 
 after(() => {
@@ -102,6 +101,41 @@ function effective(sessionId) {
   return row ? row.cache_read_tokens : 0;
 }
 
+function seedSameModelSubagent(sessionId) {
+  try {
+    stmts.insertSession.run(sessionId, "t", "completed", "/tmp/proj", null, null);
+  } catch {
+    /* already present */
+  }
+  fs.writeFileSync(
+    path.join(PROJECT_DIR, `${sessionId}.jsonl`),
+    assistantLine(`${sessionId}-main`, FINAL) + "\n"
+  );
+  const subagentDir = path.join(PROJECT_DIR, sessionId, "subagents");
+  fs.mkdirSync(subagentDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(subagentDir, "agent-same-model.jsonl"),
+    assistantLine(`${sessionId}-subagent`, FINAL) + "\n"
+  );
+
+  // Reproduce the historical hook result: only the main transcript was stored.
+  stmts.replaceTokenUsage.run(
+    sessionId,
+    MODEL,
+    "standard",
+    "global",
+    "standard",
+    CORRECT.input,
+    CORRECT.output,
+    CORRECT.cacheRead,
+    FINAL.cache_creation_input_tokens,
+    0,
+    0,
+    0,
+    0
+  );
+}
+
 function clearMarker() {
   try {
     fs.unlinkSync(MARKER);
@@ -133,6 +167,7 @@ describe("startup token repair", () => {
     clearMarker();
     try {
       db.exec("DROP TABLE IF EXISTS token_usage_pre_repair");
+      db.exec("DROP TABLE IF EXISTS token_usage_pre_repair_v2");
     } catch {
       /* absent */
     }
@@ -152,16 +187,42 @@ describe("startup token repair", () => {
     assert.equal(row.baseline_cache_read, 0, "baselines must be zeroed, not folded");
   });
 
+  it("adds omitted same-model subagent usage to completed sessions", async () => {
+    const SID = "repair-same-model-subagent";
+    seedSameModelSubagent(SID);
+    assert.equal(effective(SID), CORRECT.cacheRead, "precondition: only main usage is stored");
+
+    await runRepairNow();
+
+    assert.equal(
+      effective(SID),
+      CORRECT.cacheRead * 2,
+      "repair must combine main and flat same-model subagent transcripts"
+    );
+  });
+
   it("snapshots the pre-repair rows so the old numbers stay recoverable", async () => {
     const SID = "repair-auto-2";
     seedSession(SID);
+    db.exec("DROP TABLE IF EXISTS token_usage_pre_repair");
+    db.exec("CREATE TABLE token_usage_pre_repair AS SELECT * FROM token_usage");
+    db.prepare(
+      "UPDATE token_usage_pre_repair SET cache_read_tokens = 123 WHERE session_id = ?"
+    ).run(SID);
     await runRepairNow();
 
     const snapshot = db
-      .prepare("SELECT cache_read_tokens FROM token_usage_pre_repair WHERE session_id = ?")
+      .prepare("SELECT cache_read_tokens FROM token_usage_pre_repair_v2 WHERE session_id = ?")
       .get(SID);
     assert.ok(snapshot, "a pre-repair snapshot row must exist");
     assert.equal(snapshot.cache_read_tokens, CORRECT.cacheRead * 3, "snapshot keeps the old value");
+    assert.equal(
+      db
+        .prepare("SELECT cache_read_tokens FROM token_usage_pre_repair WHERE session_id = ?")
+        .get(SID).cache_read_tokens,
+      123,
+      "the v2 pass must not overwrite the snapshot created by v1"
+    );
   });
 
   it("writes a marker and does not run again", async () => {

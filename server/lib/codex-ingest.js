@@ -10,6 +10,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { constants: bufferConstants } = require("buffer");
 const { db, stmts } = require("../db");
 const {
   getCodexSessionsDir,
@@ -86,26 +87,96 @@ function rememberTranscriptPath(transcriptPath) {
 }
 
 /**
- * Read `[offset, offset + length)` from a file as UTF-8, closing the descriptor
- * on EVERY exit path.
+ * Default bytes decoded per read. Long Codex sessions write rollouts larger
+ * than V8's maximum string length (~512 MiB), and decoding such a file in one
+ * `toString` throws ERR_STRING_TOO_LONG on every attempt, so the rollout could
+ * never be ingested. Reading in bounded windows also caps peak memory for
+ * ordinary large rollouts.
+ */
+const DEFAULT_READ_WINDOW_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Hard ceiling for one window. A single JSONL record longer than the default
+ * window grows the window up to this size; UTF-8 never decodes to more
+ * characters than bytes, so staying at or under the string limit in bytes
+ * guarantees the decode succeeds.
+ */
+const MAX_READ_WINDOW_BYTES = bufferConstants.MAX_STRING_LENGTH;
+
+let readWindowBytes = DEFAULT_READ_WINDOW_BYTES;
+
+/**
+ * Test hook: shrink the read window so chunk boundaries can be exercised with
+ * small fixtures. Returns the previous value. Not for production use.
+ */
+function setReadWindowBytesForTests(bytes) {
+  const previous = readWindowBytes;
+  readWindowBytes = Number.isInteger(bytes) && bytes > 0 ? bytes : DEFAULT_READ_WINDOW_BYTES;
+  return previous;
+}
+
+/**
+ * Read `[offset, offset + length)` from a file as raw bytes, closing the
+ * descriptor on EVERY exit path.
  *
  * `Buffer.alloc` and `fs.readSync` can both throw after the open, and callers
  * retry a failed rollout on every subsequent sweep — so an fd leaked here does
  * not leak once, it leaks once per sweep and will eventually exhaust the
  * process descriptor limit on a file with a persistent read error.
  */
-function readRangeUtf8(filePath, offset, length) {
+function readRangeBuffer(filePath, offset, length) {
   const fd = fs.openSync(filePath, "r");
   try {
     const buffer = Buffer.alloc(length);
-    fs.readSync(fd, buffer, 0, length, offset);
-    return buffer.toString("utf8");
+    const read = fs.readSync(fd, buffer, 0, length, offset);
+    return read < length ? buffer.subarray(0, read) : buffer;
   } finally {
     try {
       fs.closeSync(fd);
     } catch {
       // Already closed or otherwise invalid — there is nothing left to release.
     }
+  }
+}
+
+/**
+ * Read the complete JSONL lines that start at `offset`, stopping at `end` or
+ * after one bounded window, whichever comes first.
+ *
+ * The cut is made on the raw bytes at the last newline, never inside a
+ * record: 0x0A cannot occur inside a multi-byte UTF-8 sequence, so every
+ * returned line decodes intact and `bytes` is an exact cursor advance. If a
+ * window holds no newline but the range continues, the window grows (one
+ * oversized record) up to the string limit; a record beyond even that throws,
+ * which callers already report as a retryable failure.
+ *
+ * @returns {{ text: string, bytes: number, capped: boolean, tail: string }}
+ *   `text` is whole lines (ending in "\n"); `bytes` is its byte length;
+ *   `capped` is true when unread bytes remain before `end`; `tail` is the
+ *   unterminated end of the range, only when the range was read to `end`.
+ */
+function readCompleteLines(filePath, offset, end) {
+  let window = Math.min(readWindowBytes, MAX_READ_WINDOW_BYTES);
+  for (;;) {
+    const length = Math.max(0, Math.min(end - offset, window));
+    const buffer = length > 0 ? readRangeBuffer(filePath, offset, length) : Buffer.alloc(0);
+    const capped = offset + buffer.length < end;
+    const lastNewline = buffer.lastIndexOf(0x0a);
+    if (lastNewline >= 0) {
+      return {
+        text: buffer.toString("utf8", 0, lastNewline + 1),
+        bytes: lastNewline + 1,
+        capped,
+        tail: capped ? "" : buffer.toString("utf8", lastNewline + 1),
+      };
+    }
+    if (!capped) return { text: "", bytes: 0, capped: false, tail: buffer.toString("utf8") };
+    if (window >= MAX_READ_WINDOW_BYTES) {
+      throw new Error(
+        `Codex rollout record at byte ${offset} exceeds ${MAX_READ_WINDOW_BYTES} bytes`
+      );
+    }
+    window = Math.min(window * 2, MAX_READ_WINDOW_BYTES);
   }
 }
 
@@ -441,7 +512,6 @@ function backfillCodexCardContext(transcriptPath, session, consumedBytes) {
   }
   if (metadata.card_context_version === CARD_CONTEXT_VERSION) return false;
 
-  const body = readRangeUtf8(transcriptPath, 0, consumedBytes);
   const agentId = `codex:${session.id}`;
   const existing = new Set(
     db
@@ -454,26 +524,35 @@ function backfillCodexCardContext(transcriptPath, session, consumedBytes) {
   );
   let changed = false;
   db.transaction(() => {
-    for (const line of body.split("\n")) {
-      if (!line) continue;
-      let record;
-      try {
-        record = JSON.parse(line);
-      } catch {
-        continue;
+    // Walk the consumed range in bounded windows; the cursor always sits on a
+    // line boundary, so every record here is complete.
+    let position = 0;
+    while (position < consumedBytes) {
+      const { text, bytes, capped } = readCompleteLines(transcriptPath, position, consumedBytes);
+      if (bytes === 0) break;
+      position += bytes;
+      for (const line of text.split("\n")) {
+        if (!line) continue;
+        let record;
+        try {
+          record = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        const message = responseItemUserMessage(record);
+        if (!message) continue;
+        const timestamp = Date.parse(record.timestamp || "")
+          ? new Date(record.timestamp).toISOString()
+          : "";
+        const key = `${timestamp}\u0000${message.prompt}`;
+        if (existing.has(key)) continue;
+        const event = persistEvent(session.id, agentId, record);
+        if (event) {
+          existing.add(`${event.created_at}\u0000${event.summary}`);
+          changed = true;
+        }
       }
-      const message = responseItemUserMessage(record);
-      if (!message) continue;
-      const timestamp = Date.parse(record.timestamp || "")
-        ? new Date(record.timestamp).toISOString()
-        : "";
-      const key = `${timestamp}\u0000${message.prompt}`;
-      if (existing.has(key)) continue;
-      const event = persistEvent(session.id, agentId, record);
-      if (event) {
-        existing.add(`${event.created_at}\u0000${event.summary}`);
-        changed = true;
-      }
+      if (!capped) break;
     }
   })();
   changed = syncCodexCardContext(session.id, agentId) || changed;
@@ -850,37 +929,51 @@ function ingestCodexToolEvents(transcriptPath, options = {}) {
   const length = stat.size - offset;
   if (length <= 0) return { changed: false, events: [] };
 
-  let body;
-  try {
-    body = readRangeUtf8(transcriptPath, offset, length);
-  } catch {
-    // Same as the stat failure above — a read error must stay retryable.
-    return { changed: false, events: [], failed: true };
-  }
-  const lastNewline = body.lastIndexOf("\n");
-  if (lastNewline < 0) return { changed: false, events: [] };
-  const complete = body.slice(0, lastNewline + 1);
-  const nextOffset = offset + Buffer.byteLength(complete);
-  const records = [];
-  for (const line of complete.split("\n")) {
-    if (!line) continue;
-    let record;
-    try {
-      record = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (record.type === "response_item" && responseToolDetails(record)) records.push(record);
-  }
   const agentId = `codex:${session.id}`;
-  // A historical rollout can contain thousands of calls. Commit the whole
-  // file atomically so a crash never advances the cursor past only part of its
-  // analytics, and so cold backfill does not pay one SQLite transaction per
-  // call.
-  const events = db.transaction((responseItems) =>
-    responseItems.map((record) => persistEvent(session.id, agentId, record)).filter(Boolean)
-  )(records);
-  stmts.upsertCodexToolIngestState.run(transcriptPath, session.id, nextOffset);
+  const events = [];
+  let cursor = offset;
+  let failed = false;
+  // Bounded windows (see readCompleteLines): a rollout past the string limit
+  // must still index. Each window's events AND its cursor advance commit in one
+  // transaction, so a crash can never advance the cursor past uncommitted
+  // analytics or replay committed ones, and cold backfill still pays one
+  // SQLite transaction per window rather than per call.
+  for (;;) {
+    let window;
+    try {
+      window = readCompleteLines(transcriptPath, cursor, stat.size);
+    } catch {
+      // Same as the stat failure above — a read error must stay retryable.
+      // Windows already committed keep their progress.
+      failed = true;
+      break;
+    }
+    if (window.bytes === 0) break;
+    const records = [];
+    for (const line of window.text.split("\n")) {
+      if (!line) continue;
+      let record;
+      try {
+        record = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (record.type === "response_item" && responseToolDetails(record)) records.push(record);
+    }
+    const nextOffset = cursor + window.bytes;
+    events.push(
+      ...db.transaction((responseItems) => {
+        const persisted = responseItems
+          .map((record) => persistEvent(session.id, agentId, record))
+          .filter(Boolean);
+        stmts.upsertCodexToolIngestState.run(transcriptPath, session.id, nextOffset);
+        return persisted;
+      })(records)
+    );
+    cursor = nextOffset;
+    if (!window.capped) break;
+  }
+  if (failed && events.length === 0) return { changed: false, events: [], failed: true };
   // Do not touch `sessions.updated_at` for a historical analytics backfill:
   // that timestamp drives card freshness and must remain the session's actual
   // activity time. A live append reaches the main ingest path too, which
@@ -891,6 +984,7 @@ function ingestCodexToolEvents(transcriptPath, options = {}) {
     session: events.length > 0 ? stmts.getSession.get(session.id) : session,
     agent: events.length > 0 ? stmts.getAgent.get(agentId) : null,
     events,
+    ...(failed ? { failed: true } : {}),
   };
 }
 
@@ -898,8 +992,47 @@ function ingestCodexToolEvents(transcriptPath, options = {}) {
  * Ingest one append-only rollout file. Apart from the versioned card-context
  * repair, calling it repeatedly without appended bytes produces no writes or
  * broadcasts, even when hooks and fs.watch report the same change.
+ *
+ * The file is consumed in bounded windows (see readCompleteLines) until its
+ * last complete line, so every caller still gets the whole unread range in
+ * one call — including rollouts too large to decode as a single string.
  */
 function ingestCodexTranscript(transcriptPath, options = {}) {
+  const result = ingestCodexTranscriptWindow(transcriptPath, options, null);
+  let window = result;
+  while (window.more && !window.failed) {
+    window = ingestCodexTranscriptWindow(transcriptPath, options, window.carry);
+    mergeIngestWindow(result, window);
+  }
+  if (!result.failed) mergeIngestWindow(result, ingestCodexToolEvents(transcriptPath, options));
+  delete result.more;
+  delete result.carry;
+  return result;
+}
+
+/** Fold one later window's outcome into the accumulated result, in place. */
+function mergeIngestWindow(result, window) {
+  result.changed = Boolean(result.changed || window.changed);
+  if (window.created) result.created = true;
+  if (window.session) result.session = window.session;
+  if (window.agent) result.agent = window.agent;
+  if (window.events?.length) {
+    result.events = result.events || [];
+    for (const event of window.events) result.events.push(event);
+  }
+  if (window.failed) result.failed = true;
+  result.more = window.more;
+  result.carry = window.carry || result.carry;
+}
+
+/**
+ * Ingest at most one bounded window of a rollout, starting at its cursor.
+ * `carry` hands the previous window's running state forward: token snapshots
+ * are priced by the latest turn context's `model`/`speed`, which may sit in an
+ * earlier window (restarting at "standard" would misprice them), and naming
+ * must behave as it would over the whole range.
+ */
+function ingestCodexTranscriptWindow(transcriptPath, options, carry) {
   if (!isCodexTranscript(transcriptPath, options)) return { changed: false, events: [] };
   rememberTranscriptPath(transcriptPath);
   let stat;
@@ -910,7 +1043,8 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
     return { changed: false, events: [], failed: true };
   }
   const state = stmts.getCodexIngestState.get(transcriptPath);
-  const offset = !state || stat.size < state.byte_offset ? 0 : state.byte_offset;
+  const storedOffset = !state || stat.size < state.byte_offset ? 0 : state.byte_offset;
+  const offset = Number.isInteger(carry?.readOffset) ? carry.readOffset : storedOffset;
   const repairSession = state?.session_id ? stmts.getSession.get(state.session_id) : null;
   let repairedCardContext = false;
   try {
@@ -931,11 +1065,10 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
           events: [],
         }
       : { changed: false, events: [] };
-  let body;
+  let window;
   try {
-    const length = stat.size - offset;
-    if (length <= 0) return cardRepairResult();
-    body = readRangeUtf8(transcriptPath, offset, length);
+    if (stat.size - offset <= 0) return cardRepairResult();
+    window = readCompleteLines(transcriptPath, offset, stat.size);
   } catch {
     // An I/O failure is NOT a completed no-op. The sweep records this file's
     // size+mtime fingerprint after any non-throwing return, so reporting a read
@@ -945,11 +1078,12 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
     return { changed: false, events: [], failed: true };
   }
 
-  const lastNewline = body.lastIndexOf("\n");
-  if (lastNewline < 0) return cardRepairResult();
-  const complete = body.slice(0, lastNewline + 1);
-  const remainder = body.slice(lastNewline + 1);
-  const nextOffset = offset + Buffer.byteLength(complete);
+  if (window.bytes === 0) return cardRepairResult();
+  const complete = window.text;
+  // Only a window that reached end-of-file has a real unterminated tail; a
+  // capped window stops at a line boundary, so its remainder is empty.
+  const remainder = window.tail;
+  const nextOffset = offset + window.bytes;
   const records = complete
     .split("\n")
     .filter(Boolean)
@@ -960,7 +1094,26 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
         return [];
       }
     });
-  if (!records.length) return cardRepairResult();
+  if (!records.length) {
+    if (state?.session_id) {
+      stmts.upsertCodexIngestState.run(
+        transcriptPath,
+        state.session_id,
+        nextOffset,
+        remainder,
+        asNumber(state.input_tokens),
+        asNumber(state.cached_input_tokens),
+        asNumber(state.cache_write_input_tokens),
+        asNumber(state.output_tokens),
+        asNumber(state.reasoning_output_tokens)
+      );
+    }
+    return {
+      ...cardRepairResult(),
+      more: window.capped,
+      carry: state?.session_id ? carry : { ...carry, readOffset: nextOffset },
+    };
+  }
 
   let meta = records.find((record) => record.type === "session_meta")?.payload;
   const resolvedSessionId = state?.session_id || meta?.id || sessionIdFromPath(transcriptPath);
@@ -1035,8 +1188,8 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
     stmts.updateAgent.run(null, "completed", null, null, endedAt, null, agentId);
     session = stmts.getSession.get(session.id);
   }
-  let model = session.model || "unknown";
-  let speed = "standard";
+  let model = carry?.model || session.model || "unknown";
+  let speed = carry?.speed || "standard";
   let counters = {
     input_tokens: asNumber(state?.input_tokens),
     cached_input_tokens: asNumber(state?.cached_input_tokens),
@@ -1056,6 +1209,11 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
       .map((row) => `${row.created_at}\u0000${row.summary}`)
   );
 
+  // Whether prompts may still set the session name. Evaluated once per call
+  // against the session as loaded (the loop never refreshes it), and carried
+  // across windows so a windowed read names the session exactly as a single
+  // pass would.
+  const nameOpen = carry?.nameOpen ?? (!session.name || session.name === "Codex session");
   for (const record of records) {
     if (record.type === "session_meta") {
       meta = record.payload;
@@ -1081,7 +1239,7 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
     if (userMessage) {
       const prompt = userMessage.prompt;
       if (prompt) {
-        if (!session.name || session.name === "Codex session") {
+        if (nameOpen) {
           stmts.updateSessionName.run(prompt, session.id, prompt);
         }
         // Claude main agents already receive their task through hooks. Codex
@@ -1096,7 +1254,7 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
     if (record.type === "event_msg" && LIFECYCLE_EVENT_TYPES.has(record.payload?.type)) {
       latestLifecycleRecord = record;
     }
-    // Tool invocations are owned by `ingestCodexToolEvents` below. The primary
+    // Tool invocations are owned by `ingestCodexToolEvents`. The primary
     // cursor records lifecycle, message, and token events only, which keeps a
     // watcher/hook append from creating a duplicate tool row.
     const duplicatePrompt = promptKey && seenPromptKeys.has(promptKey);
@@ -1132,11 +1290,6 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
   // marker. Replaying an old task_started record must never reactivate and
   // broadcast a dead session merely because it shares a cwd with a live one.
   if (confirmedLive !== false) applyCodexTranscriptLifecycle(session.id, latestLifecycleRecord);
-  // Tool invocations are stored through an independent cursor so initial
-  // rollout imports and all subsequent real-time appends preserve their exact
-  // order without double-counting lifecycle/token records.
-  const toolResult = ingestCodexToolEvents(transcriptPath, options);
-  events.push(...(toolResult.events || []));
   stmts.touchSession.run(session.id);
   // A native `/rename` lives outside the rollout, so it wins over the first
   // user prompt even when both files changed around the same time.
@@ -1147,6 +1300,8 @@ function ingestCodexTranscript(transcriptPath, options = {}) {
     session,
     agent: stmts.getAgent.get(agentId),
     events,
+    more: window.capped,
+    carry: { model, speed, nameOpen },
   };
 }
 
@@ -1537,4 +1692,5 @@ module.exports = {
   refreshCodexSessionTitles,
   syncCodexStateSessions,
   isCodexTranscript,
+  setReadWindowBytesForTests,
 };
