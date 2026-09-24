@@ -248,6 +248,23 @@ describe("historical usage reprices from the corrected rules", () => {
     // opus-5.5: 4 + 20 + 0.20 = 24.20  (30.50 at the Opus 5 rule it would otherwise inherit)
     assert.equal(result.breakdown.find((b) => b.model === "claude-opus-5-5").cost, 24.2);
   });
+
+  it("prices Opus 5.5 Fast mode at the seeded $8/$40, with cache rates scaled from the 0.05x read", () => {
+    const rules = db.prepare("SELECT * FROM model_pricing").all();
+    const fast = {
+      ...bucket("claude-opus-5-5"),
+      speed: "fast",
+      cache_write_tokens: 2 * MTOK, // total writes; 1M of them are 1h writes
+      cache_write_1h_tokens: MTOK,
+    };
+    const result = calculateCost([fast], rules, null);
+
+    assert.deepEqual(result.unpriced_models ?? [], []);
+    // Fast scales every rate by 8/4 = 2x: 8 in + 40 out + 0.40 read (0.05 x 8)
+    // + 10 5m write (1.25 x 8) + 16 1h write (2 x 8) = 74.40
+    const cost = result.breakdown.find((b) => b.model === "claude-opus-5-5").cost;
+    assert.ok(Math.abs(cost - 74.4) < 1e-9, `expected 74.40, got ${cost}`);
+  });
 });
 
 describe("Sonnet 5 rate correction on pre-existing databases", () => {
