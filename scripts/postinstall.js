@@ -12,9 +12,9 @@
  * @author Son Nguyen <hoangson091104@gmail.com>
  */
 
-const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { runNpm } = require("./run-npm.js");
 
 const clientDir = path.join(__dirname, "..", "client");
 const clientManifest = path.join(clientDir, "package.json");
@@ -29,13 +29,14 @@ if (!fs.existsSync(clientManifest)) {
 
 console.log("[postinstall] installing client dependencies (client/)...");
 
-// `shell: true` is required on Windows so npm's `.cmd` shim resolves (Node
-// rejects spawning `.cmd`/`.bat` directly since 18.20 / CVE-2024-27980); the
-// fixed arg list has no shell-significant characters, so this stays safe.
-const result = spawnSync("npm", ["install"], {
+// The nested client install would otherwise inherit `npm_config_allow_scripts`
+// from the parent lifecycle and fail with EALLOWSCRIPTS for users who have
+// allow-scripts set in their global `.npmrc`. Sanitize the child environment
+// with the shared helper (see scripts/run-npm.js) — the child still reads the
+// user's and project `.npmrc` files directly, so intended behavior is unchanged.
+
+const result = runNpm(["install"], process.env, {
   cwd: clientDir,
-  stdio: "inherit",
-  shell: true,
 });
 
 if (result.error) {
